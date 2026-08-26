@@ -41,45 +41,42 @@ in from a class. They behave like a roster everywhere else.
 **Printable sheets**: a photo roster with colour-coded majors, auto-fitted so the
 faces are as large as the page budget allows, and a free-time sheet.
 
-## Official GPAs
+### About GPA
 
-ODU splits Banner across two hostnames. Rosters and registration history live on
-`facultyssb`; the student profile — the only place with an official GPA — lives
-on `studentssb`. Those are different origins, so the console can neither fetch
-that page nor read it in a frame. No CORS headers, and no amount of cleverness
-changes that.
+The only GPA shown is the one the transcript's letter grades add up to, and the
+console says so where it shows it. It is blind to repeats, grade forgiveness and
+transfer credit, so it can disagree with the registrar.
 
-`gpa-bridge.js` is the other half. The console opens a window on the student
-host; you click the bridge there; it looks up each student and posts the results
-back. Cross-origin `postMessage` is permitted where reading is not.
+The official number lives on the student self-service host, which is a different
+origin with no CORS headers — a page on the faculty host cannot read it, and no
+amount of cleverness changes that. So the student pane links out to the profile
+instead, which is one click and always right.
 
-Two clicks, and the browser leaves no shorter path. A userscript could remove the
-second one, at the cost of an extension install.
+## The code
 
-## Discovery kit
+`bookmarklet/src/*.js` are fragments of one program, concatenated in filename
+order and wrapped in a single IIFE by `build.py`. Each fragment is valid
+JavaScript on its own — they hold function and `var` declarations, never half a
+function — so an editor can parse one without the rest, but only the bundle runs.
 
-Banner's internal endpoints are undocumented and differ by version and by what a
-campus turns on. Guessing at them failed three times in a row while building
-this; reading what a page actually did worked every time. So the kit is the
-durable part:
-
-| Script | For |
+| | |
 | --- | --- |
-| `spy.js` | Records every call a page makes while you use it. |
-| `probe.js` | Checks an install has the fields the console needs. |
-| `diagnose.js` | Dumps a response's shape when something answers unexpectedly. |
-| `probe-profile.js` | Finds which endpoint serves a student profile's data. |
-| `probe-photo.js` | Finds a photo endpoint that does not need a section. |
-| `probe-courselist.js` | Why a course list came back empty or refused. |
-| `probe-gpa.js` | Looks for a GPA in responses already being received. |
+| `10-core` | constants, DOM and formatting helpers |
+| `20-api` | headers, the `/ssb` prefix resolver, GET and POST |
+| `30-banner` | one function per endpoint; no DOM |
+| `40-domain` | categories, GPA arithmetic, the free/busy map |
+| `50-print` | the photo roster and free-time sheets |
+| `60-groups` | artificial classes, stored in localStorage |
+| `70-shell` | the overlay: toolbar, progress, drawer, panes |
+| `80-sidebar` | sections and groups, and the group editor |
+| `90-roster` | the middle pane, as photos or as a table |
+| `100-student` | the student pane and the transcript grid |
+| `110-scheduling` | shared free time |
+| `120-load` | opening a section or a group |
+| `130-boot` | terms, and starting up |
 
-All read-only. All redact identifiers before reporting, because the finding is
-the field path, not the student.
-
-[`ENDPOINTS.md`](ENDPOINTS.md) is what they found here: what each endpoint is
-keyed by, what it returns, and the traps — the lowercase `l` in
-`classlistDetail`, `majorCode` masquerading as a second major, the inconsistent
-`/ssb` prefix, `404` meaning "no such route" while `401` can be transient.
+Files 10–60 touch no DOM and 70 onwards draw. The split falls there because a
+change to how Banner answers should never be a change to how anything looks.
 
 ## Working on it
 
@@ -87,8 +84,10 @@ keyed by, what it returns, and the traps — the lowercase `l` in
 python3 bookmarklet/devserve.py
 ```
 
-Open <http://127.0.0.1:8765/> and drag a dev link to your bookmarks bar once.
-Then: edit, save, click the bookmark. No pasting, no rebuild, no push.
+Open <http://127.0.0.1:8765/> and drag the dev link to your bookmarks bar once.
+Then: edit a file in `src/`, save, click the bookmark. No pasting, no rebuild, no
+push. The dev server bundles on every request, so a fragment that fails to parse
+fails immediately rather than at publish time.
 
 Banner is HTTPS and an HTTPS page normally refuses to load scripts over HTTP, but
 loopback is exempt — browsers treat `http://127.0.0.1` as a potentially
@@ -101,17 +100,44 @@ python3 bookmarklet/build.py --base https://mgrau.github.io/banner_plus
 git commit -am "rebuild" && git push
 ```
 
-Bookmarks load the script from the site each click, so a fix is live without
-re-dragging.
+The bookmark loads the script from the site on each click, so a fix is live
+without re-dragging.
 
-## Portability
+## Tests
 
-Written against Banner 9 at ODU. Everything the console calls is resolved at
-runtime where it can be — the `/ssb` prefix is discovered per endpoint family,
-field names are read from known paths with looser fallbacks — but the endpoint
-*names* are ODU's, and another campus may differ. If it comes up empty
-somewhere, the kit above is how you find out why, and the console reports what a
-response actually contained rather than a bare failure.
+```bash
+python3 test/run.py
+python3 test/run.py --only scheduling
+```
+
+`test/stub.py` is a pretend Banner — the same endpoints, invented students — and
+`test/run.py` drives the built bundle against it in a headless Chrome. Each check
+clicks something and asserts on what appears.
+
+It is all end-to-end on purpose. Almost every line here is a reaction to a click,
+and the things that have actually broken were a stale path prefix cached from a
+404, a drawer that would not close, and an edit that silently deleted a function.
+None of those are visible to a unit test of the arithmetic.
+
+You can also poke at it by hand:
+
+```bash
+python3 test/stub.py
+open http://127.0.0.1:8801/FacultySelfService/ssb/classListApp/classListPage
+```
+
+## Endpoints, and porting this elsewhere
+
+[`ENDPOINTS.md`](ENDPOINTS.md) documents what was found here: what each endpoint
+is keyed by, what it returns, and the traps — the lowercase `l` in
+`classlistDetail`, `majorCode` masquerading as a second major, the inconsistent
+`/ssb` prefix, `404` meaning "no such route" while `401` can be transient.
+
+Everything the console calls is resolved at runtime where it can be, and it
+reports what a response actually contained rather than a bare failure. But the
+endpoint *names* are ODU's, and another campus may differ. The last section of
+`ENDPOINTS.md` is how to find yours; guessing at names failed three times in a
+row while building this, and reading what a page actually did worked every time.
 
 ## A word about the output
 

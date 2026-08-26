@@ -1,60 +1,75 @@
-/* Banner console — classes, rosters, students, and scheduling in one place.
+/* Banner Plus — classes, rosters, student records and scheduling in one place.
  *
- * Paste into the DevTools console on any Banner Faculty Self-Service page. It
- * runs on the session you are already signed in to; nothing is uploaded.
+ * GENERATED FILE. Built from bookmarklet/src/*.js by bookmarklet/build.py.
+ * Edit the sources, not this.
  *
- *   sidebar   your sections for a term, plus saved groups of pasted UINs
- *   roster    a photo grid; click a face for detail, tick faces to select
- *   right     the focused student — schedule and transcript — or, on the
- *             Scheduling tab, a free-time heatmap across everyone selected
+ * Click the bookmarklet on any Banner Faculty Self-Service page. It runs in
+ * that page, on the session you are already signed in to; nothing is uploaded
+ * and nothing is installed.
  *
- * Actions print a photo roster or a free-time sheet, or hand a transcript to
- * the semester planner.
+ *   sidebar   your sections for a term, plus saved groups of students
+ *   middle    the roster, as a grid of faces or as a table
+ *   right     the focused student — schedule and transcript — or, for a
+ *             selection, a heatmap of when they are collectively free
  *
- * WHY A CONSOLE AND NOT PAGES
+ * WHY THIS EXISTS
  *
- * Banner shows one record at a time because that is what a record-management UI
- * does. Everything worth having here is a join it will not do: a roster as one
- * sheet of faces, a group's schedules overlaid to find a free hour, a term's
- * sections in one list. The point is not a prettier Banner.
+ * Banner shows one record at a time, because that is what a record-management
+ * system does. Everything worth having here is a join it will not do: a roster
+ * as one sheet of faces, a group's schedules overlaid to find a free hour, a
+ * term's sections in one list. The point is not a prettier Banner.
+ *
+ * THE SOURCE, IN LOADING ORDER
+ *
+ *   10-core         constants, DOM and formatting helpers
+ *   20-api          headers, the /ssb prefix resolver, GET and POST
+ *   30-banner       one function per endpoint; no DOM
+ *   40-domain       categories, GPA arithmetic, the free/busy map
+ *   50-print        the photo roster and free-time sheets
+ *   60-groups       artificial classes, stored in localStorage
+ *   70-shell        the overlay: toolbar, progress, drawer, panes
+ *   80-sidebar      sections and groups, and the group editor
+ *   90-roster       the middle pane, as photos or as a table
+ *   100-student     the student pane and the transcript grid
+ *   110-scheduling  shared free time
+ *   120-load        opening a section or a group
+ *   130-boot        terms, and starting up
+ *
+ * Files 10-60 touch no DOM and 70 onwards draw; the split falls there because
+ * a change to how Banner answers should never be a change to how anything
+ * looks. Order matters only for the files that have side effects: 20 reads the
+ * synchronizer token, 30 asks Banner where the student host is, 70 puts the
+ * window on screen, and 130 starts the first fetch.
  *
  * ENDPOINTS
  *
- *   courseList/courseList?term=                      your sections
- *   classList/classListDetail?term=&crn=&max=500     a roster
- *   classListPicture/picture?bannerId=&crn=&term=    one photo
- *   studentPagesCommonSearch/fetchTerms              term list
- *   studentPagesCommonSearch/searchResults    POST   UIN -> record handle
- *   registrationHistory/fetchRegistrationHistory  POST  full history + grades
- *   sectionDetails/getFacultyMeetingTimes?term=&courseReferenceNumber=
- *
- * Banner mixes its path conventions — some of these sit under /ssb and some
+ * Documented in ENDPOINTS.md, including what each is keyed by and the traps.
+ * Banner mixes its path conventions — some endpoints sit under /ssb and some
  * directly under /FacultySelfService — so the prefix is resolved per family at
  * runtime rather than written down. Hardcoding it is what made an early build
  * find no classes at all.
- *
- * "xyz" is base64 of the student's PIDM. A roster already carries pidm, so
- * roster students never touch the search endpoint.
- *
- * FETCHING IS LAZY
- *
- * A roster is students and photos only. Registration history is fetched per
- * student when you open one, and for a selection when you ask for scheduling —
- * pulling 80 histories to show one face would be rude to a shared service and
- * slow for no reason.
  */
+
 (function () {
   "use strict";
 
-  var base = location.origin + "/FacultySelfService";
-  var TOKEN = null;   // set by findToken() once the DOM helpers exist
+  // ---- src/10-core.js ----------------------------------------------------
+  /* ---- Constants and small helpers ------------------------------------------
+   *
+   * The vocabulary the rest of the console is written in: the shape of a week,
+   * the colours, and the handful of functions that build a node, throttle a fan
+   * of requests, and turn Banner's formats into readable ones.
+   *
+   * Nothing here knows anything about Banner or about the screen.
+   */
+
   var DEBUG = /[?&]debug/.test(location.href);
 
   var DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
   var DAY_ABBR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   var DAY_LETTER = ["M", "T", "W", "R", "F", "S", "U"];
   var CONCURRENCY = 6;
-  var SEARCH_TYPES = ["Advisee", "Student", "advisee", "student", "MyStudents", ""];
+
   var PLANNER_URL = "https://mgrau.github.io/semester-planner/";
 
   // Free-time heatmap geometry.
@@ -71,8 +86,6 @@
   var CAT = ["#2a78d6", "#1baf7a", "#4a3aa7", "#e34948", "#eb6834", "#008300"];
   var OTHER_COLOR = "#8a6d3b";
   var MAX_CATEGORIES = 6;
-
-  var GRID_H = 2.4;
 
   // ---- helpers -------------------------------------------------------------
 
@@ -110,120 +123,6 @@
           });
       }
       for (var c = 0; c < Math.min(limit, items.length); c++) next();
-    });
-  }
-
-  /* Look like Banner's own AJAX. Its recorded requests carry
-   * X-Requested-With and, on several endpoints, X-Synchronizer-Token; without
-   * them courseList/courseList answers 401 even though the session is valid and
-   * the path is right. The token is only sent when one was found on the page —
-   * inventing a value would be worse than omitting it. */
-  function apiHeaders(extra) {
-    var h = { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" };
-    if (TOKEN) h["X-Synchronizer-Token"] = TOKEN;
-    for (var k in extra || {}) h[k] = extra[k];
-    return h;
-  }
-
-  /* A 401 or 403 can mean the headers were wrong rather than the caller being
-   * unwelcome, so a rejected request is retried bare once. Which one worked is
-   * remembered per family, the same way the path prefix is. */
-  var bareFor = {};
-
-  function fetchJSON(family, url) {
-    function go(bare) {
-      return fetch(url, {
-        credentials: "same-origin",
-        headers: bare ? { Accept: "application/json" } : apiHeaders()
-      }).then(function (r) {
-        if (!r.ok) { var e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
-        return r.json();
-      });
-    }
-    /* A 401 here has been seen to be transient — the identical request, bare,
-     * succeeded moments later — so it is retried rather than treated as a
-     * refusal. Order: with headers, bare, then bare once more after a pause.
-     * Banner answers 404 for a URL it does not serve, so a 401 never means the
-     * endpoint is wrong. */
-    function pause(ms) {
-      return new Promise(function (r) { setTimeout(r, ms); });
-    }
-    function transient(e) { return e.status === 401 || e.status === 403; }
-
-    if (bareFor[family]) return go(true);
-    return go(false).catch(function (e) {
-      if (!transient(e)) throw e;
-      return go(true).then(function (j) {
-        bareFor[family] = true;
-        if (DEBUG) console.log("[console] " + family + " prefers no custom headers");
-        return j;
-      }, function (e2) {
-        if (!transient(e2)) throw e2;
-        if (DEBUG) console.log("[console] " + family + " " + e2.message + " — retrying once");
-        return pause(600).then(function () { return go(true); });
-      });
-    });
-  }
-
-  function getJSON(url) {
-    return fetch(url, { credentials: "same-origin", headers: apiHeaders() })
-      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
-  }
-
-  /* Banner mixes its path conventions. Recordings show
-   * ssb/registrationHistory and ssb/studentPagesCommonSearch under /ssb, while
-   * sectionDetails and courseDetails sit directly under the app root; classList
-   * and courseList are reached as "../classList/…" from /ssb/classListApp/,
-   * so they are under /ssb too.
-   *
-   * Encoding that as a table invites exactly the bug it is meant to prevent —
-   * omitting /ssb for courseList is what made this find no classes at all. So
-   * each family tries /ssb first, falls back to the bare root, and the winner is
-   * remembered for the session. A wrong prefix 404s, which is a clean signal. */
-  var prefixFor = {};
-
-  function apiURL(family, qs) {
-    return function (prefix) {
-      return base + prefix + family + (qs ? "?" + qs : "");
-    };
-  }
-
-  function withPrefix(family, run) {
-    var order = prefixFor[family] ? [prefixFor[family]] : ["/ssb/", "/"];
-    var i = 0;
-    function attempt() {
-      if (i >= order.length) {
-        return Promise.reject(new Error(family + ": not found under /ssb/ or /"));
-      }
-      var p = order[i++];
-      return run(p).then(function (j) {
-        if (!prefixFor[family]) {
-          prefixFor[family] = p;
-          if (DEBUG) console.log("[console] " + family + " -> " + p);
-        }
-        return j;
-      }, function (e) {
-        if (i < order.length) return attempt();
-        throw e;
-      });
-    }
-    return attempt();
-  }
-
-  function apiGet(family, qs) {
-    return withPrefix(family, function (p) { return fetchJSON(family, apiURL(family, qs)(p)); });
-  }
-
-  function postJSON(family, body) {
-    return withPrefix(family, function (p) {
-      return fetch(base + p + family, {
-        method: "POST", credentials: "same-origin",
-        headers: apiHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify(body)
-      }).then(function (r) {
-        if (!r.ok) throw new Error("HTTP " + r.status + " " + family);
-        return r.json();
-      });
     });
   }
 
@@ -290,7 +189,120 @@
     '<rect width="100" height="100" fill="#e8eaee"/><circle cx="50" cy="38" r="17" fill="#c2c8d2"/>' +
     '<path d="M18 92c0-19 14-30 32-30s32 11 32 30z" fill="#c2c8d2"/></svg>');
 
-  // ---- Banner --------------------------------------------------------------
+  // ---- src/20-api.js -----------------------------------------------------
+  /* ---- Talking to Banner ----------------------------------------------------
+   *
+   * Every call goes through here, so the two things Banner is inconsistent about
+   * — which headers it wants and whether an endpoint lives under /ssb — are
+   * settled once rather than at each call site.
+   */
+
+  var base = location.origin + "/FacultySelfService";
+
+  /* Look like Banner's own AJAX. Its recorded requests carry
+   * X-Requested-With and, on several endpoints, X-Synchronizer-Token; without
+   * them courseList/courseList answers 401 even though the session is valid and
+   * the path is right. The token is only sent when one was found on the page —
+   * inventing a value would be worse than omitting it. */
+  function apiHeaders(extra) {
+    var h = { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" };
+    if (TOKEN) h["X-Synchronizer-Token"] = TOKEN;
+    for (var k in extra || {}) h[k] = extra[k];
+    return h;
+  }
+
+  /* A 401 or 403 can mean the headers were wrong rather than the caller being
+   * unwelcome, so a rejected request is retried bare once. Which one worked is
+   * remembered per family, the same way the path prefix is. */
+  var bareFor = {};
+
+  function fetchJSON(family, url) {
+    function go(bare) {
+      return fetch(url, {
+        credentials: "same-origin",
+        headers: bare ? { Accept: "application/json" } : apiHeaders()
+      }).then(function (r) {
+        if (!r.ok) { var e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
+        return r.json();
+      });
+    }
+    /* A 401 here has been seen to be transient — the identical request, bare,
+     * succeeded moments later — so it is retried rather than treated as a
+     * refusal. Order: with headers, bare, then bare once more after a pause.
+     * Banner answers 404 for a URL it does not serve, so a 401 never means the
+     * endpoint is wrong. */
+    function pause(ms) {
+      return new Promise(function (r) { setTimeout(r, ms); });
+    }
+    function transient(e) { return e.status === 401 || e.status === 403; }
+
+    if (bareFor[family]) return go(true);
+    return go(false).catch(function (e) {
+      if (!transient(e)) throw e;
+      return go(true).then(function (j) {
+        bareFor[family] = true;
+        if (DEBUG) console.log("[console] " + family + " prefers no custom headers");
+        return j;
+      }, function (e2) {
+        if (!transient(e2)) throw e2;
+        if (DEBUG) console.log("[console] " + family + " " + e2.message + " — retrying once");
+        return pause(600).then(function () { return go(true); });
+      });
+    });
+  }
+
+  /* Banner mixes its path conventions. Recordings show
+   * ssb/registrationHistory and ssb/studentPagesCommonSearch under /ssb, while
+   * sectionDetails and courseDetails sit directly under the app root; classList
+   * and courseList are reached as "../classList/…" from /ssb/classListApp/,
+   * so they are under /ssb too.
+   *
+   * Encoding that as a table invites exactly the bug it is meant to prevent —
+   * omitting /ssb for courseList is what made this find no classes at all. So
+   * each family tries /ssb first, falls back to the bare root, and the winner is
+   * remembered for the session. A wrong prefix 404s, which is a clean signal. */
+  var prefixFor = {};
+
+  function withPrefix(family, run) {
+    var order = prefixFor[family] ? [prefixFor[family]] : ["/ssb/", "/"];
+    var i = 0;
+    function attempt() {
+      if (i >= order.length) {
+        return Promise.reject(new Error(family + ": not found under /ssb/ or /"));
+      }
+      var p = order[i++];
+      return run(p).then(function (j) {
+        if (!prefixFor[family]) {
+          prefixFor[family] = p;
+          if (DEBUG) console.log("[console] " + family + " -> " + p);
+        }
+        return j;
+      }, function (e) {
+        if (i < order.length) return attempt();
+        throw e;
+      });
+    }
+    return attempt();
+  }
+
+  function apiGet(family, qs) {
+    return withPrefix(family, function (p) {
+      return fetchJSON(family, base + p + family + (qs ? "?" + qs : ""));
+    });
+  }
+
+  function postJSON(family, body) {
+    return withPrefix(family, function (p) {
+      return fetch(base + p + family, {
+        method: "POST", credentials: "same-origin",
+        headers: apiHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify(body)
+      }).then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status + " " + family);
+        return r.json();
+      });
+    });
+  }
 
   function findToken() {
     var sels = ['meta[name="synchronizerToken"]', 'meta[name="_csrf"]', 'meta[name="csrf-token"]',
@@ -307,17 +319,59 @@
     }
     return null;
   }
-  TOKEN = findToken();
 
-  // Banner reports where the student profile lives; better than guessing at a
-  // hostname by string surgery on this one.
+  /* Read once, at load. The token is stamped into the page Banner served and
+   * nothing here navigates, so it cannot go stale underneath us. */
+  var TOKEN = findToken();
+  if (DEBUG) console.log("[console] synchronizer token:", TOKEN ? "found" : "NOT FOUND");
+
+  /* The longest array of objects anywhere in a payload is the list.
+   * Banner's envelope key has already differed from its endpoint name once
+   * (classlistDetail, lowercase l) and its sibling classListSummary answers
+   * under "result", so guessing a key by name is how this keeps breaking. */
+  function biggestArray(obj, best, seen) {
+    best = best || []; seen = seen || [];
+    if (!obj || typeof obj !== "object" || seen.indexOf(obj) > -1) return best;
+    seen.push(obj);
+    if (Array.isArray(obj)) {
+      if (obj.length > best.length && obj[0] && typeof obj[0] === "object") best = obj;
+      return best;
+    }
+    Object.keys(obj).forEach(function (k) { best = biggestArray(obj[k], best, seen); });
+    return best;
+  }
+
+  // ---- src/30-banner.js --------------------------------------------------
+  /* ---- Reading records out of Banner ----------------------------------------
+   *
+   * One function per endpoint, each returning plain objects with the field names
+   * this console uses. Banner's own field names are inconsistent between
+   * endpoints — subject vs subjectCode, sequenceNumber vs courseSection — so the
+   * translation happens here and nothing downstream has to know.
+   *
+   * Nothing in this file touches the DOM.
+   */
+
+  var SEARCH_TYPES = ["Advisee", "Student", "advisee", "student", "MyStudents", ""];
+
+  /* Where the student self-service host lives. The console cannot read that
+   * origin, but it can send you to it, which is the manual answer for anything
+   * Banner keeps over there — GPA, holds, test scores. Banner reports the URL
+   * itself, which beats guessing at a hostname by string surgery on this one. */
+  var PROFILE_HOST = null;
+
   apiGet("searchStudent/getProfileDetails").then(function (j) {
     if (j && j.studentProfileUrl) {
       try { PROFILE_HOST = new URL(j.studentProfileUrl).origin; } catch (e) {}
       if (DEBUG) console.log("[console] student profile host:", PROFILE_HOST);
     }
   }).catch(function () {});
-  if (DEBUG) console.log("[console] synchronizer token:", TOKEN ? "found" : "NOT FOUND");
+
+  function profileURL(uin, term) {
+    var host = PROFILE_HOST || location.origin.replace("facultyssb", "studentssb");
+    return host + "/StudentSelfService/ssb/studentProfile?studentId=" +
+      encodeURIComponent(uin) + "&term=" + encodeURIComponent(term);
+  }
 
   /* Standard terms only. Banner lists every part-of-term Banner knows about —
    * "Fall 2026 Second Eight Weeks", medical-school sessions, and so on — which
@@ -335,22 +389,6 @@
         return { code: String(t.code), description: String(t.description || t.termDescription || t.code) };
       }).filter(function (t) { return t.code; });
     }).catch(function () { return []; });
-  }
-
-  /* The longest array of objects anywhere in a payload is the list.
-   * Banner's envelope key has already differed from its endpoint name once
-   * (classlistDetail, lowercase l) and its sibling classListSummary answers
-   * under "result", so guessing a key by name is how this keeps breaking. */
-  function biggestArray(obj, best, seen) {
-    best = best || []; seen = seen || [];
-    if (!obj || typeof obj !== "object" || seen.indexOf(obj) > -1) return best;
-    seen.push(obj);
-    if (Array.isArray(obj)) {
-      if (obj.length > best.length && obj[0] && typeof obj[0] === "object") best = obj;
-      return best;
-    }
-    Object.keys(obj).forEach(function (k) { best = biggestArray(obj[k], best, seen); });
-    return best;
   }
 
   var sectionDiag = { keys: null, count: 0 };
@@ -415,6 +453,19 @@
     });
   }
 
+  /* Every major a curriculum payload names — primary first, then any secondary
+   * curricula. Two endpoints return this same nested shape, and reading it two
+   * different ways is how a double major ends up listed in one view and not the
+   * other. */
+  function majorsIn(d) {
+    var pc = d.primaryCurriculum || {};
+    var majors = (pc.majorFieldsOfStudy || []).map(function (f) { return f.major; }).filter(Boolean);
+    (d.secondaryCurricula || []).forEach(function (c) {
+      (c.majorFieldsOfStudy || []).forEach(function (f) { if (f.major) majors.push(f.major); });
+    });
+    return majors;
+  }
+
   function fetchRoster(term, crn) {
     return apiGet("classList/classListDetail", "term=" + encodeURIComponent(term) +
       "&crn=" + encodeURIComponent(crn) +
@@ -427,10 +478,7 @@
           var d = detail[i] || {}, s = summary[i] || {};
           var pidm = d.pidm || s.studentPidm || s.pidm;
           var pc = d.primaryCurriculum || {};
-          var majors = (pc.majorFieldsOfStudy || []).map(function (f) { return f.major; }).filter(Boolean);
-          (d.secondaryCurricula || []).forEach(function (c) {
-            (c.majorFieldsOfStudy || []).forEach(function (f) { if (f.major) majors.push(f.major); });
-          });
+          var majors = majorsIn(d);
           out.push({
             key: String(pidm || s.bannerId || i),
             uin: s.bannerId || "", pidm: pidm, xyz: pidm ? btoa(String(pidm)) : null,
@@ -593,10 +641,7 @@
       .then(function (j) {
         var d = (j && j.data) || j || {};
         var pc = d.primaryCurriculum || {};
-        var majors = (pc.majorFieldsOfStudy || []).map(function (f) { return f.major; }).filter(Boolean);
-        (d.secondaryCurricula || []).forEach(function (c) {
-          (c.majorFieldsOfStudy || []).forEach(function (f) { if (f.major) majors.push(f.major); });
-        });
+        var majors = majorsIn(d);
         if (majors.length) s.majors = majors;
         if (pc.college) s.college = pc.college;
         if (pc.termAdmit) s.admit = pc.termAdmit;
@@ -655,19 +700,12 @@
   function fetchMeetings(termCode, crn) {
     var key = termCode + ":" + crn;
     if (meetingCache[key]) return Promise.resolve(meetingCache[key]);
-    var h = { Accept: "application/json", "X-Requested-With": "XMLHttpRequest" };
-    if (TOKEN) h["X-Synchronizer-Token"] = TOKEN;
-    var qs = "term=" + encodeURIComponent(termCode) +
-      "&courseReferenceNumber=" + encodeURIComponent(crn);
-    return withPrefix("sectionDetails/getFacultyMeetingTimes", function (pre) {
-      return fetch(base + pre + "sectionDetails/getFacultyMeetingTimes?" + qs,
-        { credentials: "same-origin", headers: h })
-        .then(function (r) {
-          if (!r.ok) throw new Error("HTTP " + r.status);
-          return r.json();
-        });
-    })
-      .then(function (j) { return j; }, function () { return null; })
+    return apiGet("sectionDetails/getFacultyMeetingTimes",
+      "term=" + encodeURIComponent(termCode) +
+      "&courseReferenceNumber=" + encodeURIComponent(crn))
+      // A section with no times on file is a normal answer, not a failure: the
+      // caller gets an empty list either way and the cache remembers it.
+      .catch(function () { return null; })
       .then(function (j) {
         var out = ((j && j.fmt) || []).map(function (f) {
           var m = f.meetingTime || {};
@@ -676,7 +714,7 @@
         }).filter(function (m) { return m.begin && m.days.some(Boolean); });
         meetingCache[key] = out;
         return out;
-      }).catch(function () { meetingCache[key] = []; return []; });
+      });
   }
 
   /* Everything the scheduling and detail views need for one student: history,
@@ -706,7 +744,14 @@
     });
   }
 
-  // ---- domain --------------------------------------------------------------
+  // ---- src/40-domain.js --------------------------------------------------
+  /* ---- What the data means --------------------------------------------------
+   *
+   * The arithmetic behind the views: which majors earn a colour, what a set of
+   * grades adds up to, and when a group of students is collectively in class.
+   * No DOM, no fetching — the screen and the printed sheet both call in here so
+   * they cannot drift apart.
+   */
 
   function autoCategories(students) {
     var counts = {};
@@ -728,31 +773,15 @@
     return { label: "Other", color: OTHER_COLOR };
   }
 
-  /* Official GPAs, when we have them.
+  /* A GPA from the letter grades on the transcript.
    *
-   * Banner does not expose a GPA anywhere on the faculty host — three working
-   * endpoints carry nothing GPA-shaped and the plausible names 404. The number
-   * lives on the student profile at studentssb-prod, a different origin this
-   * page cannot read.
-   *
-   * So gpa-bridge.js runs over there and posts results back: cross-origin
-   * postMessage is permitted even where reading is not. They are cached per
-   * term, because a GPA is a fact about a point in time and last term's is not
-   * this term's. */
-  var GPA_KEY = "banner_console_gpa";
-  var gpaCache = {};
-  try { gpaCache = JSON.parse(localStorage.getItem(GPA_KEY)) || {}; } catch (e) { gpaCache = {}; }
-  function saveGpa() {
-    try { localStorage.setItem(GPA_KEY, JSON.stringify(gpaCache)); } catch (e) {}
-  }
-  function officialGpa(s, term) {
-    if (!s.uin) return null;
-    var v = gpaCache[(term || curTerm()) + ":" + s.uin];
-    return typeof v === "number" ? v : null;
-  }
-
+   * Blind to repeats, grade forgiveness and transfer credit, so it can disagree
+   * with the registrar's number — the views that show it say so. Banner's
+   * official GPA is on the student self-service host, a different origin this
+   * page cannot read. */
   var POINTS = { "A+": 4, A: 4, "A-": 3.7, "B+": 3.3, B: 3, "B-": 2.7, "C+": 2.3, C: 2,
                  "C-": 1.7, "D+": 1.3, D: 1, "D-": 0.7, F: 0 };
+
   function gpaOf(courses) {
     var p = 0, h = 0;
     (courses || []).forEach(function (c) {
@@ -763,6 +792,21 @@
     return h ? { gpa: p / h, hours: h } : null;
   }
 
+  /* Students with at least one meeting time this term. Everyone else is left out
+   * of the free-time picture entirely rather than counted as free all week —
+   * "no schedule on file" and "free" are not the same claim, and treating them
+   * alike would quietly inflate every window. Both the pane and the printed
+   * sheet name who was dropped. */
+  function withMeetings(students, termCode) {
+    return students.filter(function (s) {
+      return (s.history || []).some(function (c) {
+        return c.termCode === termCode && (c.meetings || []).length;
+      });
+    });
+  }
+
+  /* For each day and half-hour slot, the indices of the students who are in a
+   * class. Indices rather than students so the callers can name them. */
   function busyMap(students, termCode, nDays) {
     var g = [], d, s;
     for (d = 0; d < nDays; d++) { g[d] = []; for (s = 0; s < N_SLOTS; s++) g[d][s] = []; }
@@ -785,7 +829,27 @@
     return g;
   }
 
-  // ---- printable documents -------------------------------------------------
+  /* Which step of the ramp a slot earns. Everybody-free gets the darkest step to
+   * itself, so "all of them" is distinguishable at a glance from "all but one" —
+   * which is the difference between scheduling a meeting and not. */
+  function rampStep(free, total) {
+    if (free === total) return RAMP.length - 1;
+    return Math.max(0, Math.min(RAMP.length - 2,
+      Math.floor(free / total * (RAMP.length - 1))));
+  }
+
+  // ---- src/50-print.js ---------------------------------------------------
+  /* ---- Printable sheets -----------------------------------------------------
+   *
+   * Two documents: a photo roster and a free-time sheet. Each is a whole HTML
+   * page built as a string and opened in its own window, rather than a print
+   * stylesheet over the console — a sheet meant for paper wants a different
+   * layout, not the same layout with things hidden.
+   *
+   * They go out as blob: URLs with an explicit charset. document.write into an
+   * iframe inherits the parent page's encoding, which turned every em dash into
+   * mojibake.
+   */
 
   function pageCSS() {
     return "@page{size:letter portrait;margin:.5in}*{box-sizing:border-box}" +
@@ -857,26 +921,18 @@
   }
 
   function freeTimeDoc(students, termCode, termLabel, nDays) {
-    var scheduled = students.filter(function (s) {
-      return (s.history || []).some(function (c) {
-        return c.termCode === termCode && (c.meetings || []).length;
-      });
-    });
+    var scheduled = withMeetings(students, termCode);
     var missing = students.filter(function (s) { return scheduled.indexOf(s) < 0; });
     var total = scheduled.length;
     if (!total) return wrapDoc("Free time", "<header><h1>Shared free time</h1></header>" +
       '<div class="note">No meeting times on file for these students this term.</div>');
 
     var g = busyMap(scheduled, termCode, nDays);
-    function step(free) {
-      if (free === total) return RAMP.length - 1;
-      return Math.max(0, Math.min(RAMP.length - 2, Math.floor(free / total * (RAMP.length - 1))));
-    }
     var rows = "", d, s;
     for (s = 0; s < N_SLOTS; s++) {
       var t0 = DAY_START + s * SLOT, cells = "";
       for (d = 0; d < nDays; d++) {
-        var free = total - g[d][s].length, i = step(free);
+        var free = total - g[d][s].length, i = rampStep(free, total);
         cells += '<td><div class="cell" style="background:' + RAMP[i] + ";color:" + RAMP_INK[i] +
           '">' + (free || "") + "</div></td>";
       }
@@ -962,7 +1018,48 @@
     return out.join("\n");
   }
 
-  // ---- saved groups --------------------------------------------------------
+  /* Column count for the printed roster: measure a candidate off-screen and
+   * walk the real row heights, the same arithmetic the photo-roster bookmarklet
+   * uses, so the page count is exact rather than guessed. */
+  function fitColumns(students, title, termLabel, maxPages, cb) {
+    var f = el("iframe", { style: { position: "fixed", left: "-10000px", top: "0",
+      width: (8.5 - 1) * 96 + "px", height: (11 - 1) * 96 + "px", border: "0" } });
+    document.body.appendChild(f);
+    var cols = 3;
+    function attempt() {
+      var html = photoRosterDoc(students, title, termLabel, cols);
+      var d = f.contentDocument;
+      d.open(); d.write(html); d.close();
+      setTimeout(function () {
+        var head = d.querySelector("header");
+        var rows = [].map.call(d.querySelectorAll(".grid-row"), function (r) {
+          return r.getBoundingClientRect().height;
+        });
+        var usable = (11 - 1) * 96, gap = 0.11 * 96, SLACK = 3;
+        var pages = 1, y = head ? head.getBoundingClientRect().height : 40;
+        rows.forEach(function (h, i) {
+          if (i > 0) y += gap;
+          if (y + h > usable + SLACK) { pages++; y = 0; }
+          y += h;
+        });
+        if (DEBUG) console.log("[console] " + cols + " cols -> " + pages + " pages");
+        if (pages <= maxPages || cols >= 12) { f.remove(); cb(cols, html); return; }
+        cols++; attempt();
+      }, 40);
+    }
+    attempt();
+  }
+
+  // ---- src/60-groups.js --------------------------------------------------
+  /* ---- Groups ---------------------------------------------------------------
+   *
+   * An artificial class: a set of students who share no section — a research
+   * group, a set of advisees, a cohort. Once built it behaves like a roster
+   * everywhere else in the console.
+   *
+   * Groups live in this browser's localStorage and nowhere else. That is the
+   * whole storage story: there is no server to keep them on.
+   */
 
   var GROUP_KEY = "banner_console_groups";
 
@@ -1014,14 +1111,33 @@
     }).catch(function () { return []; });
   }
 
-  // ---- UI ------------------------------------------------------------------
+  function parseUINs(raw) {
+    var seen = {}, out = [];
+    String(raw || "").split(/[\s,;]+/).forEach(function (u) {
+      u = u.trim();
+      if (u && !seen[u]) { seen[u] = 1; out.push(u); }
+    });
+    return out;
+  }
+
+  // ---- src/70-shell.js ---------------------------------------------------
+  /* ---- The window itself ----------------------------------------------------
+   *
+   * The full-screen overlay and everything permanent inside it: the state object
+   * every view reads, the toolbar, the progress strip, the settings drawer, and
+   * the three panes with the divider between them.
+   *
+   * Building this file's contents has side effects — it puts the app on screen —
+   * so it runs after the data layer is defined and before any view that draws
+   * into it.
+   */
 
   var S = {
     term: null, termLabel: "", allTerms: false,
     sections: [], groups: loadGroups(),
     source: null,            // {kind:'section'|'group', crn|name, label}
     students: [], sel: {}, focus: null,
-    rightTab: "student", sat: false,
+    sat: false,              // include Saturday in the free-time grid
     // Under "All terms" the sidebar mixes terms, so every data call follows the
     // section that was opened rather than whatever the dropdown reads.
     activeTerm: null, activeLabel: "",
@@ -1272,9 +1388,6 @@
     }, 260));
   }
 
-  // Kept for call sites that only mean "something started".
-  function busy(text) { taskBegin(text); }
-
   var body = el("div", { style: { flex: "1 1 auto", display: "flex", minHeight: "0" } });
   app.appendChild(bar); app.appendChild(progWrap); app.appendChild(body);
   // Last, so it paints over the panes and leaves their indices alone.
@@ -1310,7 +1423,11 @@
 
   gutter.addEventListener("mousedown", function (ev) {
     ev.preventDefault();
-    var startX = ev.clientX, startW = right.getBoundingClientRect().width;
+    /* startW is the width we last set, not the pane's measured width. The pane
+     * has padding and no border-box, so its rect is 28px wider than its style
+     * width — measuring here and assigning there made every drag overshoot by
+     * that much, and the error compounded across drags. */
+    var startX = ev.clientX, startW = rightW;
     var prev = document.body.style.cursor;
     document.body.style.cursor = "col-resize";
     function move(e) {
@@ -1340,7 +1457,25 @@
   body.appendChild(side); body.appendChild(main);
   body.appendChild(gutter); body.appendChild(right);
 
-  // ---- sidebar -------------------------------------------------------------
+  var gearBtn = toolBtn("⚙", function () {
+    drawerOpen(!drawerIsOpen());
+  });
+  gearBtn.title = "Settings";
+
+  toolBtn("✕", function () { app.remove(); });
+
+  // ---- src/80-sidebar.js -------------------------------------------------
+  /* ---- The sidebar and the group editor -------------------------------------
+   *
+   * Your sections for the selected term, then your groups. A group in this list
+   * is also a drop target: select students in the roster and drag one of their
+   * photos here to add them.
+   *
+   * The editor is a membership list, because that is what a group is. It
+   * replaced a textarea of bare UINs, which was fine for creating a group in one
+   * go and useless for checking one — a column of eight-digit numbers cannot be
+   * read.
+   */
 
   function renderSide() {
     side.innerHTML = "";
@@ -1459,15 +1594,6 @@
       cursor: "pointer", font: "inherit", fontSize: "12px" } });
     add.onclick = newGroup;
     side.appendChild(add);
-  }
-
-  function parseUINs(raw) {
-    var seen = {}, out = [];
-    String(raw || "").split(/[\s,;]+/).forEach(function (u) {
-      u = u.trim();
-      if (u && !seen[u]) { seen[u] = 1; out.push(u); }
-    });
-    return out;
   }
 
   /* The group editor.
@@ -1729,7 +1855,18 @@
     return added;
   }
 
-  // ---- roster grid ---------------------------------------------------------
+  // ---- src/90-roster.js --------------------------------------------------
+  /* ---- The roster ------------------------------------------------------------
+   *
+   * The middle pane, in two forms of the same list. Photos when you are
+   * recognising faces; a sortable table with resizable columns when you are
+   * reading — scanning majors, checking who is a senior, pulling an email.
+   *
+   * Both support the same two gestures: pick one student to open on the right,
+   * and select a set to act on. The table adds drag-across-rows because a run of
+   * rows is a thing you can sweep; the grid does not, because its photos are
+   * drag handles for adding students to a group.
+   */
 
   /* Dragging students to a group.
    *
@@ -1917,12 +2054,19 @@
   }
 
   var COLW_DEFAULT = { name: 190, uin: 92, majors: 210, standing: 95, admit: 100, email: 190 };
+  var SEL_W = 30, PIC_W = 38;        // the two fixed leading columns
+
+  function widthOf(key) { return colW[key] || COLW_DEFAULT[key] || 120; }
+
+  function tableWidth(COLS) {
+    return COLS.reduce(function (a, c) { return a + widthOf(c.key); }, SEL_W + PIC_W);
+  }
 
   /* Drag handle on a header's trailing edge. Width is tracked on the <col>
    * rather than the <th> so the whole column follows, and mousedown stops
    * propagating so a drag never registers as a sort. */
   var tblRef = null;
-  function addResizer(th, colEl, key, COLS, COLW_DEFAULT) {
+  function addResizer(th, colEl, key, COLS) {
     var grip = el("div", { style: {
       position: "absolute", top: "0", right: "-3px", width: "7px", height: "100%",
       cursor: "col-resize", userSelect: "none" } });
@@ -1930,7 +2074,7 @@
     grip.onmousedown = function (ev) {
       ev.preventDefault(); ev.stopPropagation();
       var startX = ev.clientX;
-      var startW = colW[key] || COLW_DEFAULT[key] || 120;
+      var startW = widthOf(key);
       var prevCursor = document.body.style.cursor;
       document.body.style.cursor = "col-resize";
       function move(e) {
@@ -1939,9 +2083,7 @@
         colEl.style.width = w + "px";
         // min-width tracks the columns so the table can still outgrow the pane
         // and scroll, rather than squeezing its neighbours.
-        var t2 = 30 + 38;
-        COLS.forEach(function (c) { t2 += colW[c.key] || COLW_DEFAULT[c.key] || 120; });
-        tblRef.style.minWidth = t2 + "px";
+        tblRef.style.minWidth = tableWidth(COLS) + "px";
       }
       function up() {
         document.removeEventListener("mousemove", move, true);
@@ -1962,28 +2104,20 @@
       { key: "majors", label: "Major", get: function (s) { return (s.majors || []).join(" / "); } },
       { key: "standing", label: "Standing", get: function (s) { return s.standing || ""; } },
       { key: "admit", label: "Admitted", get: function (s) { return s.admit || ""; } },
-      // GPA needs the full registration history, which is not fetched with the
-      // roster; num() is null until it is, and sorts to the bottom rather than
-      // pretending a 0.
       { key: "email", label: "Email", get: function (s) { return s.email || ""; } }
     ];
     var col = COLS.filter(function (c) { return c.key === tableSort.col; })[0] || COLS[0];
+    // Every column is text. numeric:true keeps UINs and "2Y"-style values in
+    // human order rather than lexical.
     var rows = S.students.slice().sort(function (a, b) {
-      if (col.num) {
-        var x = col.num(a), y = col.num(b);
-        if (x == null && y == null) return 0;
-        if (x == null) return 1;          // unknown last, whichever way it is sorted
-        if (y == null) return -1;
-        return (x - y) * tableSort.dir;
-      }
-      return String(col.get(a)).localeCompare(String(col.get(b)), undefined, { numeric: true }) * tableSort.dir;
+      return String(col.get(a)).localeCompare(String(col.get(b)), undefined, { numeric: true }) *
+        tableSort.dir;
     });
 
-    // table-layout:fixed is what makes a dragged width stick; with auto layout
-    // the browser re-decides column widths from the content on every render.
-    var total = 30 + 38;
-    COLS.forEach(function (c) { total += colW[c.key] || COLW_DEFAULT[c.key] || 120; });
     /* Fills the pane, and every dragged width stays exact.
+     *
+     * table-layout:fixed is what makes a dragged width stick; with auto layout
+     * the browser re-decides column widths from the content on every render.
      *
      * width:100% alone would redistribute the surplus across all the columns,
      * undoing a drag; a fixed pixel width alone would leave the table stuck at
@@ -1993,15 +2127,13 @@
      * min-width keeps the columns honest when the pane is too narrow for them. */
     var tbl = el("table", { style: { borderCollapse: "collapse", tableLayout: "fixed",
       background: "#fff", borderRadius: "8px", fontSize: "12.5px",
-      width: "100%", minWidth: total + "px" } });
+      width: "100%", minWidth: tableWidth(COLS) + "px" } });
 
     var cg = el("colgroup");
-    var colSel = el("col", { style: { width: "30px" } });
-    var colPic = el("col", { style: { width: "38px" } });
-    cg.appendChild(colSel); cg.appendChild(colPic);
+    cg.appendChild(el("col", { style: { width: SEL_W + "px" } }));
+    cg.appendChild(el("col", { style: { width: PIC_W + "px" } }));
     var colEls = COLS.map(function (c) {
-      var w = colW[c.key] || COLW_DEFAULT[c.key] || 120;
-      var ce = el("col", { style: { width: w + "px" } });
+      var ce = el("col", { style: { width: widthOf(c.key) + "px" } });
       cg.appendChild(ce);
       return ce;
     });
@@ -2015,7 +2147,7 @@
     COLS.forEach(function (c, i) {
       var th = el("th", { title: c.label,
         text: c.label + (tableSort.col === c.key ? (tableSort.dir > 0 ? " ▲" : " ▼") : ""),
-        style: { textAlign: c.right ? "right" : "left", padding: "7px 8px", background: "#f4f6fa", cursor: "pointer",
+        style: { textAlign: "left", padding: "7px 8px", background: "#f4f6fa", cursor: "pointer",
                  borderBottom: "1px solid #d8dde5", fontWeight: "600", color: "#41556f",
                  whiteSpace: "nowrap", position: "relative", overflow: "hidden",
                  textOverflow: "ellipsis" } });
@@ -2024,7 +2156,7 @@
         else { tableSort.col = c.key; tableSort.dir = 1; }
         renderMain();
       };
-      addResizer(th, colEls[i], c.key, COLS, COLW_DEFAULT);
+      addResizer(th, colEls[i], c.key, COLS);
       hr.appendChild(th);
     });
     hr.appendChild(el("th", { style: { background: "#f4f6fa",
@@ -2144,7 +2276,6 @@
         } else {
           td.textContent = v;
           if (c.key === "uin") td.style.fontVariantNumeric = "tabular-nums";
-          if (c.right) td.style.textAlign = "right";
         }
         tr.appendChild(td);
       });
@@ -2154,7 +2285,16 @@
     return tbl;
   }
 
-  // ---- right pane ----------------------------------------------------------
+  // ---- src/100-student.js ------------------------------------------------
+  /* ---- The student pane -----------------------------------------------------
+   *
+   * One student: who they are, what they are taking now, and the whole
+   * registration history laid out as a transcript — seasons across, academic
+   * years down, newest first. That shape is the point. Banner's own history
+   * screen is one flat list, which cannot be read as a degree in progress.
+   *
+   * Also the home of showRight(), which every right-hand view goes through.
+   */
 
   function showRight(nodes) {
     right.innerHTML = "";
@@ -2290,7 +2430,6 @@
     taskBegin(null);
     hydrate([s], curTerm()).then(function () {
       idle(null);
-      // The row's GPA cell is empty until this lands.
       if (S.table) renderMain();
       var out = [nodes[0], nodes[1]];
 
@@ -2330,17 +2469,11 @@
       out.push(el("div", { text: "Transcript", style: {
         fontWeight: "700", fontSize: "12px", margin: "14px 0 4px", color: "#41556f" } }));
       out.push(transcriptGrid(s));
+      /* The only GPA here is the one these grades add up to. Banner's official
+       * number lives on the student host, which is a different origin and
+       * unreadable from this page; the profile button below is the way to it. */
       var all = gpaOf(s.history);
-      var off = officialGpa(s);
-      if (off != null) {
-        out.push(el("div", { text: "GPA " + off.toFixed(2) + " (Banner)",
-          style: { borderTop: "2px solid #222", marginTop: "6px", paddingTop: "4px",
-                   fontSize: "12px", fontWeight: "600" } }));
-        if (all)
-          out.push(el("div", { text: "computed from letter grades here: " + all.gpa.toFixed(2) +
-            " over " + all.hours + " credits",
-            style: { fontSize: "10.5px", color: "#9aa1ab", marginTop: "2px" } }));
-      } else if (all) {
+      if (all) {
         out.push(el("div", { text: "Cumulative GPA " + all.gpa.toFixed(2) + " over " + all.hours + " credits",
           style: { borderTop: "2px solid #222", marginTop: "6px", paddingTop: "4px",
                    fontSize: "12px", fontWeight: "600" } }));
@@ -2357,7 +2490,7 @@
         prof.title = "Opens this student's profile on the student self-service host, " +
           "where Banner keeps GPA, holds and test scores.";
         prof.style.flex = "1";
-        prof.onclick = function () { window.open(profileURL(s), "_blank"); };
+        prof.onclick = function () { window.open(profileURL(s.uin, curTerm()), "_blank"); };
         links.appendChild(prof);
       }
 
@@ -2385,9 +2518,21 @@
     });
   }
 
+  // ---- src/110-scheduling.js ---------------------------------------------
+  /* ---- Shared free time -----------------------------------------------------
+   *
+   * Select any set of students and see when they are collectively not in class.
+   * Pointed at a roster it answers what office hours are really asking; pointed
+   * at a research group it replaces opening twelve schedules side by side.
+   *
+   * Hovering a slot fills the panel below the grid with who is free and who is
+   * not. That belongs in a panel rather than a tooltip: it is the question the
+   * whole view exists to answer, and a tooltip vanishes the moment you look away
+   * from it to think.
+   */
+
   function openScheduling() {
     var group = selectedStudents();
-    S.rightTab = "sched";
     var nodes = [paneHeader("Scheduling", function () { setRightOpen(false); })];
     var info = el("div", { text: "Loading " + group.length + " schedules…",
       style: { color: "#6b7280", fontSize: "12px" } });
@@ -2402,11 +2547,7 @@
       .then(function () {
         var out = [nodes[0]];
         var nDays = S.sat ? 6 : 5;
-        var scheduled = group.filter(function (s) {
-          return (s.history || []).some(function (c) {
-            return c.termCode === curTerm() && (c.meetings || []).length;
-          });
-        });
+        var scheduled = withMeetings(group, curTerm());
         var total = scheduled.length;
         out.push(el("div", { text: total + " of " + group.length + " have scheduled classes",
           style: { fontSize: "12px", color: "#6b7280", marginBottom: "8px" } }));
@@ -2425,12 +2566,7 @@
             fontSize: "11px", color: "#6b7280", paddingBottom: "3px" } }));
         tbl.appendChild(hr);
 
-        /* Who is free, and who is not, for whatever cell the pointer is over.
-         *
-         * A tooltip could only ever be a truncated line, and it vanishes the
-         * moment you look away from it. This is the question the whole view
-         * exists to answer — "can these people meet at two on Tuesday, and if
-         * not, who is the problem" — so it gets a panel that stays put. */
+        // Who is free, and who is not, for whatever cell the pointer is over.
         var detail = el("div", { style: {
           marginTop: "8px", padding: "8px 10px", border: "1px solid #e6eaf0",
           borderRadius: "7px", background: "#fafbfd", fontSize: "11.5px",
@@ -2454,7 +2590,7 @@
             style: { color: "#2a78d6" } }));
           detail.appendChild(head);
 
-          function group(label, names, color) {
+          function nameRow(label, names, color) {
             if (!names.length) return;
             var row = el("div", { style: { display: "flex", gap: "5px", marginTop: "2px" } });
             row.appendChild(el("span", { text: label, style: {
@@ -2463,8 +2599,8 @@
               color: "#41556f", minWidth: "0" } }));
             detail.appendChild(row);
           }
-          group("Free", freeNames, "#1b7a4b");
-          group("In class", busyNames, "#b3261e");
+          nameRow("Free", freeNames, "#1b7a4b");
+          nameRow("In class", busyNames, "#b3261e");
         }
 
         function clearSlot() {
@@ -2480,9 +2616,8 @@
             style: { fontSize: "10px", color: "#6b7280", textAlign: "right", paddingRight: "5px",
                      whiteSpace: "nowrap" } }));
           for (d = 0; d < nDays; d++) {
-            var busy = g[d][s], free = total - busy.length;
-            var i = free === total ? RAMP.length - 1
-              : Math.max(0, Math.min(RAMP.length - 2, Math.floor(free / total * (RAMP.length - 1))));
+            var free = total - g[d][s].length;
+            var i = rampStep(free, total);
             var cell = el("td", { style: { padding: "0" } });
             var box = el("div", {
               text: free || "",
@@ -2536,39 +2671,19 @@
       });
   }
 
-  // ---- actions -------------------------------------------------------------
-
-  /* Column count for the printed roster: measure a candidate off-screen and
-   * walk the real row heights, the same arithmetic the photo-roster bookmarklet
-   * uses, so the page count is exact rather than guessed. */
-  function fitColumns(students, title, termLabel, maxPages, cb) {
-    var f = el("iframe", { style: { position: "fixed", left: "-10000px", top: "0",
-      width: (8.5 - 1) * 96 + "px", height: (11 - 1) * 96 + "px", border: "0" } });
-    document.body.appendChild(f);
-    var cols = 3;
-    function attempt() {
-      var html = photoRosterDoc(students, title, termLabel, cols);
-      var d = f.contentDocument;
-      d.open(); d.write(html); d.close();
-      setTimeout(function () {
-        var head = d.querySelector("header");
-        var rows = [].map.call(d.querySelectorAll(".grid-row"), function (r) {
-          return r.getBoundingClientRect().height;
-        });
-        var usable = (11 - 1) * 96, gap = 0.11 * 96, SLACK = 3;
-        var pages = 1, y = head ? head.getBoundingClientRect().height : 40;
-        rows.forEach(function (h, i) {
-          if (i > 0) y += gap;
-          if (y + h > usable + SLACK) { pages++; y = 0; }
-          y += h;
-        });
-        if (DEBUG) console.log("[console] " + cols + " cols -> " + pages + " pages");
-        if (pages <= maxPages || cols >= 12) { f.remove(); cb(cols, html); return; }
-        cols++; attempt();
-      }, 40);
-    }
-    attempt();
-  }
+  // ---- src/120-load.js ---------------------------------------------------
+  /* ---- Putting students on screen -------------------------------------------
+   *
+   * Opening a section or a group ends here, in setStudents(). Both arrive with
+   * different amounts already known — a roster row carries its curriculum, a
+   * pasted UIN carries a name and nothing else — so this is where the gaps get
+   * filled and the photos stream in.
+   *
+   * Fetching stays lazy on purpose. A roster is students and photographs;
+   * registration history is fetched per student when you open one, or for a
+   * selection when you ask for scheduling. Pulling eighty histories to show one
+   * face would be slow for no reason and rude to a shared service.
+   */
 
   function printPhotoRoster() {
     var group = selectedStudents();
@@ -2579,16 +2694,23 @@
     });
   }
 
-  // ---- loading -------------------------------------------------------------
-
-  function setStudents(list, label, source) {
-    // Students are in hand; photos are the long tail, so they own most of the bar.
-    taskPhase("Photos… 0/" + list.length, 0.15, 1);
+  function setStudents(list, label, source, emptyMessage) {
     photoDiag = { tried: 0, ok: 0, noId: 0, lastURL: null, lastStatus: null, lastType: null };
     S.students = list; S.sel = {}; S.focus = null; S.source = source;
     S.source.label = label;
     setRightOpen(false);
     renderSide(); renderMain();
+
+    /* Nobody to fetch anything for. Said here rather than by the caller: the
+     * photo pass below ends in idle("0 students"), which would land after the
+     * caller's own message and quietly replace it with a worse one. */
+    if (!list.length) {
+      idle(emptyMessage || "nobody in " + label);
+      return;
+    }
+
+    // Students are in hand; photos are the long tail, so they own most of the bar.
+    taskPhase("Photos… 0/" + list.length, 0.15, 1);
     // Photos stream in; the grid is usable before they land. Students who
     // arrived without curriculum — anyone from a pasted group — get it here,
     // now that their registration has supplied a CRN to ask with.
@@ -2653,8 +2775,8 @@
     if (!uinList.length) {
       // Select it anyway: an empty group still needs to be the highlighted drop
       // target, or there is nowhere to drag the first student to.
-      setStudents([], grp.name, { kind: "group", name: grp.name });
-      idle(grp.name + " is empty");
+      setStudents([], grp.name, { kind: "group", name: grp.name },
+                  grp.name + " is empty");
       return;
     }
     taskBegin("Resolving " + uinList.length + " UIN" + (uinList.length === 1 ? "" : "s") + "…");
@@ -2697,95 +2819,16 @@
       });
   }
 
-  /* Bridge to the student host.
+  // ---- src/130-boot.js ---------------------------------------------------
+  /* ---- Terms, and starting up -----------------------------------------------
    *
-   * The console asks nothing of the other origin directly — it cannot. It opens
-   * a window there, and a bookmarklet clicked in that window asks *us* for the
-   * UIN list and posts results back. postMessage crosses origins where fetch
-   * and DOM access do not.
-   *
-   * Messages are accepted only when they are shaped correctly and arrive from an
-   * https origin on this institution's domain, so a stray page cannot inject
-   * numbers into a student record view. */
-  var PROFILE_HOST = null;   // learned from Banner's own config when available
-
-  function bridgeAllowed(origin) {
-    // Our own origin is trustworthy by definition, and is how this is tested.
-    if (origin === location.origin) return true;
-    if (!/^https:\/\//.test(origin)) return false;
-    if (PROFILE_HOST) return origin === PROFILE_HOST;
-    var here = location.hostname.split(".").slice(-3).join(".");   // ec.odu.edu
-    try { return new URL(origin).hostname.slice(-here.length) === here; }
-    catch (e) { return false; }
-  }
-
-  window.addEventListener("message", function (ev) {
-    var d = ev.data;
-    if (!d || typeof d !== "object" || !bridgeAllowed(ev.origin)) return;
-
-    if (d.type === "bc-gpa-request") {
-      // The companion is asking who to look up.
-      var uins = S.students.map(function (x) { return x.uin; }).filter(Boolean);
-      try {
-        ev.source.postMessage({ type: "bc-gpa-uins", uins: uins, term: curTerm() }, ev.origin);
-      } catch (e) {}
-      return;
-    }
-
-    if (d.type === "bc-gpa-result" && d.gpas) {
-      var term = d.term || curTerm(), n = 0;
-      Object.keys(d.gpas).forEach(function (uin) {
-        var v = parseFloat(d.gpas[uin]);
-        if (isFinite(v)) { gpaCache[term + ":" + uin] = v; n++; }
-      });
-      saveGpa();
-      idle(n + " GPA" + (n === 1 ? "" : "s") + " received from the student profile");
-      renderMain();
-      if (S.focus) focusStudent(S.focus);
-      return;
-    }
-
-    if (d.type === "bc-gpa-error") {
-      idle("GPA bridge: " + String(d.message || "failed").slice(0, 120));
-      console.warn("[console] gpa bridge:", d);
-    }
-  });
-
-  /* Where this student lives on the other host. The console cannot read that
-   * page, but it can send you to it — which is also the manual answer for any
-   * field Banner keeps over there. */
-  function profileURL(s) {
-    var host = PROFILE_HOST || location.origin.replace("facultyssb", "studentssb");
-    return host + "/StudentSelfService/ssb/studentProfile?studentId=" +
-      encodeURIComponent(s.uin) + "&term=" + encodeURIComponent(curTerm());
-  }
-
-  /* No longer on a button. The bridge still works: the profile button opens
-   * that window with an opener, so clicking the bridge bookmarklet there finds
-   * this console and posts back. The GPA column fills from official numbers when
-   * that happens and from computed ones whenever history has been loaded for
-   * another reason. */
-  function fetchGpas() {
-    var uins = S.students.map(function (x) { return x.uin; }).filter(Boolean);
-    if (!uins.length) { idle("No UINs to look up."); return; }
-    var host = PROFILE_HOST || location.origin.replace("facultyssb", "studentssb");
-    var url = host + "/StudentSelfService/ssb/studentProfile?studentId=" +
-      encodeURIComponent(uins[0]) + "&term=" + encodeURIComponent(curTerm());
-    var w = window.open(url, "bc-gpa-bridge");
-    if (!w) { idle("Popup blocked — allow popups and try again."); return; }
-    idle("Opened the student profile — click the GPA bridge bookmarklet there.");
-  }
-
-  // ---- boot ----------------------------------------------------------------
-
-  var gearBtn = toolBtn("⚙", function () {
-    drawerOpen(!drawerIsOpen());
-  });
-  gearBtn.title = "Settings";
-
-  toolBtn("✕", function () { app.remove(); });
+   * The term list drives everything else: pick a term, get your sections, pick a
+   * section, get a roster. This file fills the dropdown, loads sections for
+   * whatever is selected, and then kicks the whole thing off.
+   */
 
   var ALL_TERMS = [];
+
   function fillTerms() {
     termSel.innerHTML = "";
     var list = S.allTerms ? ALL_TERMS : ALL_TERMS.filter(isStandardTerm);
@@ -2863,10 +2906,6 @@
     renderMain();
     loadSections();
   };
-  allTermsBox.onchange = function () {
-    S.allTerms = allTermsBox.checked;
-    fillTerms(); termSel.onchange();
-  };
 
   renderSide(); renderMain();
   taskBegin("Loading terms…");
@@ -2879,4 +2918,5 @@
     fillTerms();
     loadSections();
   });
+
 })();

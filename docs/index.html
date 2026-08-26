@@ -25,34 +25,29 @@
          -webkit-font-smoothing:antialiased }
   main { max-width:52rem; margin:0 auto; padding:3rem 1.25rem 4rem }
   h1 { font-size:clamp(2rem,5vw,2.9rem); margin:0; letter-spacing:-.035em; font-weight:800 }
-  .tag { color:var(--dim); font-size:1.08rem; margin:.5rem 0 2rem }
-  h2 { font-size:1.05rem; margin:2.4rem 0 .7rem; letter-spacing:-.01em }
-  .row { display:flex; align-items:center; gap:1rem; background:var(--card);
-         border:1px solid var(--line); border-radius:12px; padding:1rem 1.1rem;
-         margin-bottom:.7rem; box-shadow:0 2px 8px rgba(20,40,90,.05) }
-  .bm { display:inline-block; position:relative; overflow:hidden; flex:0 0 auto;
-        padding:.6rem 1.2rem; border-radius:10px; cursor:grab; white-space:nowrap;
-        font-weight:700; color:#fff !important; text-decoration:none;
+  .tag { color:var(--dim); font-size:1.08rem; margin:.5rem 0 2.2rem }
+  h2 { font-size:1.05rem; margin:2.6rem 0 .7rem; letter-spacing:-.01em }
+  .drag { display:flex; align-items:center; gap:1.1rem; background:var(--card);
+          border:1px solid var(--line); border-radius:14px; padding:1.3rem 1.4rem;
+          box-shadow:0 4px 18px -6px var(--shadow) }
+  .bm { display:inline-block; flex:0 0 auto; padding:.7rem 1.4rem; border-radius:10px;
+        cursor:grab; white-space:nowrap; font-weight:700; font-size:1.02rem;
+        color:#fff !important; text-decoration:none;
         background:linear-gradient(180deg,var(--accent2),var(--accent));
         box-shadow:0 1px 0 rgba(255,255,255,.4) inset, 0 6px 16px -6px var(--shadow) }
   .bm:active { cursor:grabbing }
-  .meta { min-width:0 }
-  .name { font-weight:600 }
-  .sub { color:var(--dim); font-size:.88rem; line-height:1.45 }
+  .drag .meta { min-width:0; color:var(--dim); font-size:.92rem; line-height:1.45 }
+  .does { list-style:none; padding:0; margin:1.4rem 0 0 }
+  .does li { display:flex; gap:.75rem; padding:.62rem 0; border-top:1px solid var(--line);
+             font-size:.94rem; line-height:1.5 }
+  .does b { flex:0 0 9.5rem; font-weight:600; color:var(--ink) }
+  .does span { color:var(--dim); min-width:0 }
   ol { color:var(--dim); font-size:.95rem; padding-left:1.2rem }
   li { margin:.4rem 0 }
-  .kit { border:1px solid var(--line); border-radius:12px; background:var(--card);
-         padding:.4rem 1.1rem }
-  .kit div { display:flex; gap:.9rem; padding:.55rem 0; border-top:1px solid var(--line);
-             font-size:.9rem; align-items:baseline }
-  .kit div:first-child { border-top:0 }
-  .kit code { font-family:ui-monospace,Menlo,monospace; font-size:.84rem;
-              flex:0 0 11rem; color:var(--ink) }
-  .kit span { color:var(--dim) }
   code { background:var(--card); border:1px solid var(--line); border-radius:4px;
          padding:.08em .35em; font-size:.86em }
   .note { border-left:3px solid var(--accent); background:var(--card);
-          padding:.85rem 1rem; border-radius:0 10px 10px 0; margin:1.4rem 0;
+          padding:.85rem 1rem; border-radius:0 10px 10px 0; margin:1.6rem 0;
           font-size:.93rem }
   footer { margin-top:3rem; padding-top:1.2rem; border-top:1px solid var(--line);
            color:var(--dim); font-size:.86rem }
@@ -61,42 +56,46 @@
 <body><main>
 
 <h1>Banner Plus</h1>
-<p class="tag">The things Banner has the data for but no screen for: a roster as
-one sheet of faces, a group's schedules overlaid to find a free hour, a term's
-classes in one list.</p>
+<p class="tag">Banner has the data. It has no screen for the questions you
+actually ask it &mdash; so this adds them, inside Banner, on the session you are
+already signed in to.</p>
 
-<div class="row"><a class="bm" href="javascript:(function()%7Bvar%20d=document,s=d.createElement(%27script%27);s.src=%27https://mgrau.github.io/banner_plus/console.js?v=%27+Date.now();s.onerror=function()%7Balert(%27Banner%20Plus:%20could%20not%20load%20console.js.%20This%20page%20may%20block%20outside%20scripts.%27);%7D;d.body.appendChild(s);%7D)();">Banner Console</a><div class="meta"><div class="name">Banner Console</div><div class="sub">Your classes, rosters with photographs, student records, and scheduling.</div></div></div>
-<div class="row"><a class="bm" href="javascript:(function()%7Bvar%20d=document,s=d.createElement(%27script%27);s.src=%27https://mgrau.github.io/banner_plus/gpa-bridge.js?v=%27+Date.now();s.onerror=function()%7Balert(%27Banner%20Plus:%20could%20not%20load%20gpa-bridge.js.%20This%20page%20may%20block%20outside%20scripts.%27);%7D;d.body.appendChild(s);%7D)();">GPA Bridge</a><div class="meta"><div class="name">GPA Bridge</div><div class="sub">Click this on the student-profile window the console opens. It reads the official GPAs, sends them back, and closes itself.</div></div></div>
+<div class="drag">
+  <a class="bm" href="javascript:(function()%7Bvar%20d=document,s=d.createElement(%27script%27);s.src=%27https://USERNAME.github.io/banner_plus/console.js?v=%27+Date.now();s.onerror=function()%7Balert(%27Banner%20Plus:%20could%20not%20load%20console.js.%20This%20page%20may%20block%20outside%20scripts.%27);%7D;d.body.appendChild(s);%7D)();">Banner Plus</a>
+  <div class="meta">Drag this to your bookmarks bar, open Banner Faculty
+  Self-Service, and click it.<br>
+  <code>&#8984;&#8679;B</code> shows the bar if it is hidden.</div>
+</div>
 
-<ol>
-  <li>Drag <strong>Banner Console</strong> to your bookmarks bar
-      (<code>&#8984;&#8679;B</code> shows the bar).</li>
-  <li>Open Banner Faculty Self-Service and click it.</li>
-  <li>For official GPAs, drag <strong>GPA Bridge</strong> too, then click it on
-      the window the console opens.</li>
-</ol>
+<h2>What it does</h2>
+<ul class="does">
+  <li><b>Your classes</b><span>Every section you teach in a term, with enrolment
+      counts, in one list. Or every term at once.</span></li>
+  <li><b>Rosters of faces</b><span>A grid of photographs you can actually learn
+      names from, or a sortable table when you are reading rather than
+      recognising.</span></li>
+  <li><b>Student records</b><span>Photograph, major, standing, this term's
+      schedule with rooms and times, and the full registration history laid out
+      as a transcript &mdash; seasons across, years down, newest first.</span></li>
+  <li><b>Shared free time</b><span>Select any set of students and see when they
+      are collectively not in class. Hover a slot for who is free and who is
+      not.</span></li>
+  <li><b>Groups</b><span>An artificial class of students who share no section
+      &mdash; a research group, your advisees. Search by name, paste UINs, or
+      drag students in from a roster.</span></li>
+  <li><b>Printable sheets</b><span>A photo roster with colour-coded majors,
+      auto-fitted to the page, and a free-time sheet.</span></li>
+</ul>
 
-<div class="note">Everything runs in your browser, on the Banner session you are
-already signed in to. No student data is sent anywhere — this page is static and
-has no server behind it. What it produces is a named list of students with
-photographs and grades; treat it the way you would treat a gradebook.</div>
-
-<h2>Discovery kit</h2>
-<p class="sub">Banner's internal endpoints are undocumented and differ by version
-and campus. These find them. Paste into the DevTools console; all are read-only
-and redact identifiers.</p>
-<div class="kit"><div><code>spy.js</code><span>Records every API call a Banner page makes while you use it.</span></div>
-<div><code>probe.js</code><span>Checks a Banner install has the fields the console needs.</span></div>
-<div><code>diagnose.js</code><span>Dumps a response's shape when something answers unexpectedly.</span></div>
-<div><code>probe-courselist.js</code><span>Why a course list came back empty or refused.</span></div>
-<div><code>probe-profile.js</code><span>Finds which endpoint a student profile uses.</span></div>
-<div><code>probe-photo.js</code><span>Finds a photo endpoint that does not need a section.</span></div>
-<div><code>probe-gpa.js</code><span>Looks for a GPA in responses already being received.</span></div></div>
+<div class="note">Everything runs in your browser. No student data is sent
+anywhere &mdash; this page is static and has no server behind it. What it
+produces is a named list of students with photographs and grades; treat it the
+way you would treat a gradebook.</div>
 
 <footer>
-<a href="https://github.com/mgrau/banner_plus">Source</a> &middot;
-<a href="https://github.com/mgrau/banner_plus/blob/main/ENDPOINTS.md">Endpoint notes</a><br>
-Built against Ellucian Banner 9 at Old Dominion University. Field names differ
-between installations; the kit above is how you find yours.
+<a href="https://github.com/USERNAME/banner_plus">Source</a> &middot;
+<a href="https://github.com/USERNAME/banner_plus/blob/main/ENDPOINTS.md">Endpoint notes</a><br>
+Built against Ellucian Banner 9 at Old Dominion University. Endpoint and field
+names differ between installations, so it may need adjusting elsewhere.
 </footer>
 </main></body></html>

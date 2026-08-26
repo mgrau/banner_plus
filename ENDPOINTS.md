@@ -1,10 +1,13 @@
 # Banner endpoints, as observed at ODU
 
-Everything here was recorded from a live session with `bookmarklet/spy.js`,
-`probe-*.js`, or by reading a page's own `performance` entries — not from
+Everything here was recorded from live sessions — a `fetch` recorder pasted into
+the DevTools console, and pages' own `performance` entries — not from
 documentation, which does not exist for these. Field names differ between Banner
 versions and between campuses, so treat this as a map of one installation in
 2026, not a specification.
+
+The scripts that found all this are not in the repo any more; the findings are.
+If you need to do the same somewhere else, the last section says how.
 
 Three things are worth knowing before reading any of it.
 
@@ -204,7 +207,9 @@ Returns `{success, result[], length}` where each row is
 handle. Match `id` exactly — a partial search returns neighbours, and quietly
 acting on the wrong student is the worst failure available here.
 
-`searchType` was not captured in any recording; the tools probe a candidate list.
+`searchType` was not captured in any recording. The console probes a candidate
+list — `Advisee`, `Student`, lowercase variants, then empty — and remembers the
+first that returns rows.
 
 ### Other routes seen but not used
 
@@ -231,7 +236,9 @@ than JSON, except `getFacultyMeetingTimes`.
 **A different origin.** A page on the faculty host cannot read any of these:
 no CORS headers, so the browser fetches the response and then refuses to hand it
 to JavaScript. `postMessage` from a script running on this host is the only way
-across — see `bookmarklet/gpa-bridge.js`.
+across, and it costs a second click on a second window — which is why the
+console links out to the profile instead and computes its own GPA from the
+grades it can see.
 
 | Endpoint | Keyed by | Returns |
 |---|---|---|
@@ -262,13 +269,21 @@ In rough order of how well it has worked:
 
 1. **Read what the page already did.** `performance.getEntriesByType("resource")`
    lists every URL a page requested, whether or not a recorder was installed.
+   Use the page normally, then read the list:
+
+   ```js
+   performance.getEntriesByType("resource")
+     .map(e => e.name).filter(n => /ssb|Service/.test(n))
+   ```
+
    This found the contact-card photo endpoint after five guessed names failed,
-   and the GPA endpoint after `spy.js` could not be installed early enough.
-   `bookmarklet/probe-photo.js` and `probe-profile.js` do this.
-2. **Record it live.** `bookmarklet/spy.js` patches `fetch` and
-   `XMLHttpRequest` and reports URLs, request bodies, header names and response
-   shapes, with identifiers redacted. It has to be pasted *before* the calls it
-   should see, which rules it out for anything that happens during page load.
+   and the GPA endpoint, which happens during page load and so cannot be
+   recorded any other way.
+2. **Record it live.** Patch `fetch` and `XMLHttpRequest` before using the page,
+   and log URLs, request bodies and response shapes. Redact identifiers before
+   pasting anything anywhere: the finding is the field path, not the student.
+   This has to be installed *before* the calls it should see, which rules it out
+   for anything that happens during page load.
 3. **Read the app's own JavaScript.** Every route the app calls is a string in a
    bundle. This is how `classListDetail` was found originally.
 4. **Guess a name.** Three attempts this way produced three wrong answers. It is
