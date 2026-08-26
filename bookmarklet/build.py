@@ -44,6 +44,7 @@ from __future__ import annotations
 import argparse
 import html as html_lib
 import re
+import subprocess
 from pathlib import Path
 from urllib.parse import quote, unquote
 
@@ -53,7 +54,24 @@ ROOT = HERE.parent
 DOCS = ROOT / "docs"
 
 BOOKMARKLET = "console.js"
-DEFAULT_BASE = "https://USERNAME.github.io/banner_plus"
+
+
+def default_base() -> str | None:
+    """Where Pages will serve docs/, worked out from the git remote.
+
+    The base is baked into the bookmark's href, so getting it wrong ships a
+    link to a URL that does not exist — and the failure surfaces as "could not
+    load console.js" on someone else's machine, days later. Deriving it beats
+    remembering to pass --base.
+    """
+    try:
+        url = subprocess.run(["git", "-C", str(ROOT), "remote", "get-url", "origin"],
+                             capture_output=True, text=True, check=True).stdout.strip()
+    except Exception:
+        return None
+    m = (re.match(r"git@github\.com:([^/]+)/(.+?)(?:\.git)?$", url) or
+         re.match(r"https://github\.com/([^/]+)/(.+?)(?:\.git)?$", url))
+    return f"https://{m.group(1)}.github.io/{m.group(2)}" if m else None
 
 # Characters that must never reach an href unencoded, because the HTML parser
 # decodes the attribute before the URL layer sees it.
@@ -222,9 +240,16 @@ def repo_url(base: str) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--base", default=DEFAULT_BASE,
-                    help="public URL docs/ is served from")
+    ap.add_argument("--base", default=None,
+                    help="public URL docs/ is served from "
+                         "(default: derived from the git remote)")
     args = ap.parse_args()
+
+    base = args.base or default_base()
+    if not base:
+        raise SystemExit(
+            "cannot work out where this will be served from — no github.com "
+            "remote named origin.\nPass it: build.py --base https://<you>.github.io/<repo>")
 
     DOCS.mkdir(exist_ok=True)
     (DOCS / ".nojekyll").write_text("")   # Jekyll has no job here
@@ -232,9 +257,9 @@ def main() -> int:
     js = bundle()
     (DOCS / BOOKMARKLET).write_text(js, encoding="utf-8")
 
-    href = loader(args.base, BOOKMARKLET)
+    href = loader(base, BOOKMARKLET)
     page = (PAGE.replace("__HREF__", href)
-                .replace("__REPO__", repo_url(args.base)))
+                .replace("__REPO__", repo_url(base)))
     (DOCS / "index.html").write_text(page, encoding="utf-8")
 
     # Verify against the finished page, not the string just built: the failure
@@ -245,15 +270,17 @@ def main() -> int:
         raise SystemExit(f"expected 1 bookmarklet in the page, found {len(hrefs)}")
     if not decodes_back(hrefs[0], unquote(href[len("javascript:"):])):
         raise SystemExit("the link does not decode back to itself")
+    # A placeholder that reaches the page is a link to nowhere, and it fails on
+    # someone else's machine days later. Refuse to ship one.
+    if "USERNAME" in written or "example.com" in written:
+        raise SystemExit(f"the base URL looks like a placeholder: {base}")
 
     for f in fragments():
         print(f"  {f.name:20} {f.stat().st_size / 1024:6.1f} KB")
     print(f"bundled    {len(js.splitlines())} lines, {len(js) / 1024:.1f} KB -> {DOCS / BOOKMARKLET}")
-    print(f"verified   the bookmarklet decodes correctly")
+    print("verified   the bookmarklet decodes correctly")
+    print(f"serving as {base}/{BOOKMARKLET}")
     print(f"->         {DOCS / 'index.html'}")
-    if args.base == DEFAULT_BASE:
-        print("\nNote: placeholder URL. Rebuild with")
-        print("  python3 bookmarklet/build.py --base https://<you>.github.io/banner_plus")
     return 0
 
 

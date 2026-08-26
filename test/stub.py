@@ -13,12 +13,16 @@ real student.
 
 WHAT IT DELIBERATELY GETS WRONG
 
-Two things, because the console has been broken by both before:
+Three things, because the console has been broken by all three:
 
   * courseList answers under "result", not "courseList", and uses subjectCode
     where other endpoints use subject.
   * Half the endpoints live under /ssb and half do not, so the prefix resolver
     has something to resolve. A wrong prefix 404s, as it does in Banner.
+  * The session starts cold. courseList answers 401 until the class-list page
+    has been served, and only that page carries a synchronizer token — so a
+    console clicked anywhere else in Faculty Self-Service has to wake the app
+    up before it can ask anything. /menu is that "anywhere else".
 """
 
 from __future__ import annotations
@@ -116,13 +120,14 @@ MEETINGS = {
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
 
-PAGE = """<!doctype html><html><head><meta charset="utf-8">
-<meta name="synchronizerToken" content="TOKEN123">
-<title>Class List</title></head>
-<body><h1>Banner (stub)</h1><div id="page">Faculty Self-Service</div>
-<script src="/console.js"></script>
-<script src="/check.js"></script>
-</body></html>"""
+def page(title: str, token: str | None, scripts: bool = True) -> str:
+    return ("<!doctype html><html><head><meta charset=\"utf-8\">" +
+            (f'<meta name="synchronizerToken" content="{token}">' if token else "") +
+            f"<title>{title}</title></head>"
+            f"<body><h1>Banner (stub)</h1><div id=\"page\">{title}</div>" +
+            ('<script src="/console.js"></script><script src="/check.js"></script>'
+             if scripts else "") +
+            "</body></html>")
 
 
 def pidm_of(uin: str) -> str | None:
@@ -194,14 +199,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if u.path == "/check.js":
             self.send_blob(self.server.check_js.encode(), "application/javascript")
             return
+        # The class-list page. Serving it is what wakes the app up, whether a
+        # browser navigated here or the console fetched it in the background.
+        # It is also the only page carrying a synchronizer token.
         if "classListPage" in u.path or u.path == "/":
-            self.send_blob(PAGE.encode(), "text/html; charset=utf-8")
-            return
+            self.server.warm = True
+            return self.send_blob(page("Class List", "TOKEN123").encode(),
+                                  "text/html; charset=utf-8")
+
+        # Somewhere else in Faculty Self-Service: no token, cold session.
+        if u.path.endswith("/menu"):
+            return self.send_blob(page("Faculty Services", None).encode(),
+                                  "text/html; charset=utf-8")
 
         fam, ok = self.route(u.path)
-        if fam is None:
-            return self.not_found()
-        if not ok:
+        if fam is None or not ok:
             return self.not_found()
 
         if fam == "searchStudent/getProfileDetails":
@@ -212,6 +224,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json(TERMS)
 
         if fam == "courseList/courseList":
+            # Cold session, or a token issued for some other app: 401, the way
+            # Banner does until the class list has been opened once.
+            if not self.server.warm:
+                return self.send_blob(b"no class list context", "text/plain", 401)
+            if self.headers.get("X-Synchronizer-Token") != "TOKEN123":
+                return self.send_blob(b"bad token", "text/plain", 401)
             rows = SECTIONS.get(q.get("term", ""), [])
             # The envelope Banner actually uses here, not one named for the call.
             return self.send_json({"success": True, "length": len(rows), "result": rows})
@@ -311,6 +329,7 @@ def serve(port: int, console_js: str, verbose: bool = False):
     srv.check_js = ""          # run.py swaps this in per check
     srv.result = None          # a check POSTs its verdict to /result
     srv.done = threading.Event()
+    srv.warm = False           # set once the class-list page has been served
     srv.verbose = verbose
     return srv
 

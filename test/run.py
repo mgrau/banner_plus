@@ -335,6 +335,19 @@ CHECKS = [
       return true;
     """),
 
+    ("clicked away from the class list, it wakes the app up", r"""
+      // Started on /menu: no synchronizer token in the page, and the stub
+      // answers courseList 401 until the class-list page has been served.
+      if (document.querySelector('meta[name="synchronizerToken"]'))
+        return "the harness started on the wrong page";
+      await booted();
+      const labels = sectionRows().map(text);
+      if (!labels.some((l) => /PHYS 101/.test(l)))
+        return "no classes after warm-up: " + status();
+      await openFall101();
+      return true;
+    """),
+
     ("no stray globals leak onto window", r"""
       for (const k of ["S", "el", "hydrate", "fetchRoster", "photoRosterDoc"])
         if (k in window) return k + " escaped onto window";
@@ -347,11 +360,23 @@ CHECKS = [
 INTERNAL = {"printed photo roster fits and carries a legend",
             "printed free-time sheet names who was left out"}
 
+# Checks that start somewhere other than the class-list page. The default is
+# the class list because that is where most people click it; /menu is the case
+# that used to need a manual visit to Faculty Class List first.
+START_PAGE = {"clicked away from the class list, it wakes the app up":
+              "/FacultySelfService/ssb/menu"}
+
 
 def build() -> str:
-    subprocess.run([sys.executable, str(ROOT / "bookmarklet" / "build.py")],
-                   check=True, capture_output=True)
-    return (ROOT / "docs" / "console.js").read_text(encoding="utf-8")
+    """The bundle, in memory.
+
+    Deliberately not a shell out to build.py: that also writes docs/index.html,
+    and running it without --base once published an install page pointing at
+    https://USERNAME.github.io. Tests must not be able to break the site.
+    """
+    sys.path.insert(0, str(ROOT / "bookmarklet"))
+    import build as builder
+    return builder.bundle()
 
 
 def harness(js: str, internal: bool) -> str:
@@ -399,6 +424,7 @@ def run_one(srv, url: str, timeout: int = 45) -> tuple[bool, str]:
     """
     srv.done.clear()
     srv.result = None
+    srv.warm = False           # every check gets a cold Banner session
     profile = Path(tempfile.mkdtemp(prefix="bp-chrome-"))
     proc = subprocess.Popen(
         [CHROME, "--headless=new", "--disable-gpu", "--no-sandbox",
@@ -433,7 +459,8 @@ def main() -> int:
     js = build()
     srv = stub.serve(PORT, js, verbose=args.verbose)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
-    url = f"http://127.0.0.1:{PORT}/FacultySelfService/ssb/classListApp/classListPage"
+    root = f"http://127.0.0.1:{PORT}"
+    default_page = "/FacultySelfService/ssb/classListApp/classListPage"
 
     checks = [(n, s) for n, s in CHECKS if not args.only or args.only in n]
     failed = []
@@ -445,7 +472,7 @@ def main() -> int:
                 script = ("const {S, el, hydrate, curTerm, photoRosterDoc, freeTimeDoc} "
                           "= window.__bp;\n") + script
             srv.check_js = check_script(script)
-            ok, why = run_one(srv, url)
+            ok, why = run_one(srv, root + START_PAGE.get(name, default_page))
             print(("  ok   " if ok else "  FAIL ") + name + ("" if ok else "\n         " + why))
             if not ok:
                 failed.append(name)

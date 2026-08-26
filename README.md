@@ -96,12 +96,18 @@ trustworthy origin. No certificate needed.
 To publish:
 
 ```bash
-python3 bookmarklet/build.py --base https://mgrau.github.io/banner_plus
+python3 bookmarklet/build.py
 git commit -am "rebuild" && git push
 ```
 
 The bookmark loads the script from the site on each click, so a fix is live
-without re-dragging.
+without re-dragging. `build.py` works out the Pages URL from the git remote and
+refuses to write a placeholder into the page — a wrong base ships a bookmark
+pointing at a URL that does not exist, and the failure surfaces as "could not
+load console.js" on somebody else's machine days later.
+
+Note that `build.py` writes `docs/index.html` as well as the bundle. The tests
+call `bundle()` directly for exactly that reason.
 
 ## Tests
 
@@ -118,6 +124,14 @@ It is all end-to-end on purpose. Almost every line here is a reaction to a click
 and the things that have actually broken were a stale path prefix cached from a
 404, a drawer that would not close, and an edit that silently deleted a function.
 None of those are visible to a unit test of the arithmetic.
+
+The stub gets three things wrong the way Banner does, because each has broken
+the console before: `courseList` answers under a key not named for the call, the
+`/ssb` prefix is inconsistent, and the session starts cold — `courseList` is 401
+until the class-list page has been served, and only that page carries a
+synchronizer token. One check therefore starts on a different Banner page
+entirely, which is the case that used to need a manual visit to Faculty Class
+List first.
 
 You can also poke at it by hand:
 

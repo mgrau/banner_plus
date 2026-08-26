@@ -47,9 +47,67 @@ function fetchTerms() {
   }).catch(function () { return []; });
 }
 
-var sectionDiag = { keys: null, count: 0 };
+var sectionDiag = { keys: null, count: 0, warmed: null };
+
+/* Waking the class-list app up.
+ *
+ * The class list is an application, not a page, and courseList is its endpoint.
+ * Clicked anywhere else in Faculty Self-Service, that call comes back 401 or
+ * empty: the session has no class-list context yet, and this page's
+ * synchronizer token — where it has one at all — was issued for a different
+ * app. Which is why the console used to need one manual visit to Faculty Class
+ * List before any classes would appear.
+ *
+ * Fetching the class-list page is that visit, without the navigation. Banner
+ * sets up the session while serving it, and the HTML it returns carries the
+ * token the endpoint wants, so both halves are fixed by one request.
+ *
+ * Memoised: one warm-up per session, not one per term.
+ */
+var warmed = null;
+
+function tokenIn(html) {
+  var m = /<meta[^>]+name=["']synchronizerToken["'][^>]+content=["']([^"']+)["']/i.exec(html) ||
+          /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']synchronizerToken["']/i.exec(html) ||
+          /["']synchronizerToken["']\s*[:=]\s*["']([^"']+)["']/.exec(html);
+  return m ? m[1] : null;
+}
+
+function warmUp() {
+  if (warmed) return warmed;
+
+  // Already inside the class-list app with a token in hand: nothing to wake.
+  if (/classListApp/i.test(location.href) && TOKEN) {
+    sectionDiag.warmed = "not needed — already on the class list page";
+    return (warmed = Promise.resolve(true));
+  }
+
+  warmed = withPrefix("classListApp/classListPage", function (p) {
+    return fetch(base + p + "classListApp/classListPage", { credentials: "same-origin" })
+      .then(function (r) {
+        if (!r.ok) { var e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
+        return r.text();
+      });
+  }).then(function (html) {
+    var t = tokenIn(html);
+    if (t && t !== TOKEN) TOKEN = t;
+    sectionDiag.warmed = t ? "ok, token from the class list page" : "ok, no token in the page";
+    if (DEBUG) console.log("[console] warmed up the class list app;", sectionDiag.warmed);
+    return true;
+  }).catch(function (e) {
+    // Not fatal. If the session was already good, the call below still works.
+    sectionDiag.warmed = "failed: " + (e.message || e);
+    if (DEBUG) console.log("[console] warm-up failed:", e);
+    return false;
+  });
+  return warmed;
+}
 
 function fetchMySections(term) {
+  return warmUp().then(function () { return courseListOnce(term); });
+}
+
+function courseListOnce(term) {
   return apiGet("courseList/courseList", "term=" + encodeURIComponent(term) +
     "&filterText=&sortColumn=&sortDirection=asc&max=200&offset=0").then(function (j) {
     sectionDiag.keys = j && typeof j === "object" ? Object.keys(j).join(", ") : String(typeof j);
