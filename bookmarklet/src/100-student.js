@@ -111,6 +111,49 @@ function transcriptGrid(s) {
   return wrap;
 }
 
+/* The two ways out of the console, for one student: Banner's own record, and
+ * the degree planner.
+ *
+ * Directly under the photograph rather than at the foot of the pane. They are
+ * not a conclusion you reach after reading the transcript — they are where you
+ * go when this pane does not have what you came for, and finding that out
+ * should not cost a scroll past everything it does have.
+ *
+ * What each does is in its tooltip. A line of explanatory text under two
+ * buttons is fine at the bottom of a pane and clutter at the top of one.
+ */
+function exitLinks(s) {
+  var links = el("div", { style: { display: "flex", gap: "6px", margin: "0 0 12px" } });
+
+  if (s.uin) {
+    var prof = btn("Banner profile ↗");
+    prof.title = "Opens this student's profile on the student self-service host, " +
+      "where Banner keeps the official GPA, holds and test scores.";
+    prof.style.flex = "1";
+    prof.onclick = function () { window.open(profileURL(s.uin, curTerm()), "_blank"); };
+    links.appendChild(prof);
+  }
+
+  var pbtn = btn("Semester Planner ↗", true);
+  pbtn.title = "Copies this transcript to the clipboard and opens the planner, " +
+    "which takes a pasted transcript.";
+  pbtn.style.flex = "1";
+  pbtn.onclick = function () {
+    var text = plannerText(s);
+    function go() { window.open(PLANNER_URL, "_blank"); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        // The button says what happened, since the clipboard gives no sign.
+        pbtn.textContent = "Transcript copied — paste it there";
+        go();
+      }, function () { console.log(text); go(); });
+    } else { console.log(text); go(); }
+  };
+  links.appendChild(pbtn);
+
+  return links;
+}
+
 function focusStudent(s) {
   S.focus = s;
   renderMain();
@@ -143,7 +186,7 @@ function focusStudent(s) {
   hydrate([s], curTerm()).then(function () {
     idle(null);
     if (S.table) renderMain();
-    var out = [nodes[0], nodes[1]];
+    var out = [nodes[0], nodes[1], exitLinks(s)];
 
     var now = (s.history || []).filter(function (c) { return c.termCode === curTerm(); });
     out.push(el("div", { text: "This term", style: {
@@ -183,7 +226,8 @@ function focusStudent(s) {
     out.push(transcriptGrid(s));
     /* The only GPA here is the one these grades add up to. Banner's official
      * number lives on the student host, which is a different origin and
-     * unreadable from this page; the profile button below is the way to it. */
+     * unreadable from this page; the profile button at the top is the way to
+     * it. */
     var all = gpaOf(s.history);
     if (all) {
       out.push(el("div", { text: "Cumulative GPA " + all.gpa.toFixed(2) + " over " + all.hours + " credits",
@@ -194,34 +238,6 @@ function focusStudent(s) {
               "forgiveness and transfer credit, so it can disagree with Banner.",
         style: { fontSize: "10.5px", color: "#9aa1ab", marginTop: "2px", lineHeight: "1.4" } }));
     }
-
-    // Two ways out of the console: Banner's own record, and the planner.
-    var links = el("div", { style: { display: "flex", gap: "6px", marginTop: "10px" } });
-    if (s.uin) {
-      var prof = btn("Banner profile \u2197");
-      prof.title = "Opens this student's profile on the student self-service host, " +
-        "where Banner keeps GPA, holds and test scores.";
-      prof.style.flex = "1";
-      prof.onclick = function () { window.open(profileURL(s.uin, curTerm()), "_blank"); };
-      links.appendChild(prof);
-    }
-
-    var pbtn = btn("Semester Planner \u2197", true);
-    pbtn.style.flex = "1";
-    pbtn.onclick = function () {
-      var text = plannerText(s);
-      function go() { window.open(PLANNER_URL, "_blank"); }
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function () {
-          pbtn.textContent = "Transcript copied \u2014 paste it there";
-          go();
-        }, function () { console.log(text); go(); });
-      } else { console.log(text); go(); }
-    };
-    links.appendChild(pbtn);
-    out.push(links);
-    out.push(el("div", { text: "Planner: copies the transcript, then opens it to paste into.",
-      style: { fontSize: "10.5px", color: "#9aa1ab", marginTop: "3px" } }));
 
     showRight(out);
   }).catch(function (e) {

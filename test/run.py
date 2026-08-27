@@ -212,6 +212,24 @@ CHECKS = [
       return true;
     """),
 
+    ("the two exit links sit above the record, not below it", r"""
+      await openFall101();
+      click($$("img", main())[0].parentNode);
+      await waitFor("transcript", () => containing("div", "Transcript", rightPane()).length);
+      const kids = Array.from(rightPane().children);
+      const at = (re) => kids.findIndex((n) => re.test(text(n)));
+      const links = at(/Banner profile/);
+      if (links < 0) return "no Banner profile button";
+      if (!/Semester Planner/.test(text(kids[links]))) return "the planner button is elsewhere";
+      // Directly under the photograph and facts, and above everything else.
+      if (!/UIN: 01234567/.test(text(kids[links - 1])))
+        return "not directly under the facts, but under: " + text(kids[links - 1]).slice(0, 60);
+      for (const [what, re] of [["this term", /This term/], ["the transcript", /Transcript/],
+                                ["the GPA", /Cumulative GPA/]])
+        if (at(re) < links) return what + " comes before the links";
+      return true;
+    """),
+
     ("confidential students are flagged", r"""
       await openFall101();
       click(byText("button", "Table", main()));
