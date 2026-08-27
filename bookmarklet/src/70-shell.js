@@ -127,6 +127,62 @@ drawer.appendChild(setting(hideEmptyBox, "Hide empty sections",
   "Sections with nobody enrolled \u2014 cross-listed shells, dissertation sections.",
   function () { S.hideEmpty = hideEmptyBox.checked; loadSections(); }));
 
+/* Faces per row on the printed roster.
+ *
+ * This used to fit itself: render at three columns, measure the real row
+ * heights, add a column, repeat until it came in under two pages. Clever, and
+ * wrong about what the number is for — how large a face has to be to be
+ * recognised from the back of the room is a judgement about the room, not
+ * about the page budget. So it is a dial, and the auto-fit is gone.
+ *
+ * Fewer across means larger faces and more paper. Five fits a letter page at
+ * about an inch and a quarter each, which is the size Banner's own 200px
+ * photographs stop looking sharp at.
+ */
+var COLS_KEY = "banner_console_cols";
+var printCols = 5;
+try {
+  var storedCols = parseInt(localStorage.getItem(COLS_KEY), 10);
+  if (isFinite(storedCols) && storedCols >= 2 && storedCols <= 10) printCols = storedCols;
+} catch (e) {}
+
+function slider(labelText, hint, min, max, value, onChange) {
+  var row = el("div", { style: { padding: "10px 2px", borderTop: "1px solid #eef1f5" } });
+  var head = el("div", { style: { display: "flex", alignItems: "baseline", gap: "8px" } });
+  head.appendChild(el("div", { text: labelText, style: { fontSize: "13px", fontWeight: "600" } }));
+  var readout = el("div", { text: String(value), style: {
+    marginLeft: "auto", fontSize: "13px", fontWeight: "700", color: "#2a78d6",
+    fontVariantNumeric: "tabular-nums" } });
+  head.appendChild(readout);
+  row.appendChild(head);
+
+  var input = el("input", { type: "range", min: String(min), max: String(max), step: "1",
+    value: String(value), style: { width: "100%", margin: "7px 0 2px", accentColor: "#2a78d6" } });
+  // Both events: input tracks the drag, change catches a keyboard arrow.
+  input.oninput = input.onchange = function () {
+    readout.textContent = input.value;
+    onChange(parseInt(input.value, 10));
+  };
+  row.appendChild(input);
+
+  var ticks = el("div", { style: { display: "flex", justifyContent: "space-between",
+    fontSize: "10px", color: "#9aa1ab", fontVariantNumeric: "tabular-nums" } });
+  ticks.appendChild(el("span", { text: String(min) }));
+  ticks.appendChild(el("span", { text: String(max) }));
+  row.appendChild(ticks);
+
+  if (hint) row.appendChild(el("div", { text: hint, style: {
+    fontSize: "11.5px", color: "#6b7280", lineHeight: "1.45", marginTop: "4px" } }));
+  return row;
+}
+
+drawer.appendChild(slider("Faces per row",
+  "On the printed photo roster. Fewer across means larger faces and more pages.",
+  2, 10, printCols, function (n) {
+    printCols = n;
+    try { localStorage.setItem(COLS_KEY, String(n)); } catch (e) {}
+  }));
+
 var resetW = el("button", { text: "Reset table column widths", style: {
   width: "100%", marginTop: "12px", padding: "7px", borderRadius: "6px",
   border: "1px solid #c7d0dd", background: "#fff", color: "#41556f",

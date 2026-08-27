@@ -38,8 +38,10 @@ names who is free and who is not.
 research group, a set of advisees. Search by name, paste UINs, or drag students
 in from a class. They behave like a roster everywhere else.
 
-**Printable sheets**: a photo roster with colour-coded majors, auto-fitted so the
-faces are as large as the page budget allows, and a free-time sheet.
+**Printable sheets**: a photo roster with names, UINs and colour-coded majors —
+five faces across by default, on a slider in settings, because how big a face
+has to be to be recognised is a judgement about your room — and a free-time
+sheet.
 
 ### About GPA
 

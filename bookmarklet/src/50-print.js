@@ -181,34 +181,31 @@ function plannerText(s) {
   return out.join("\n");
 }
 
-/* Column count for the printed roster: measure a candidate off-screen and
- * walk the real row heights, the same arithmetic the photo-roster bookmarklet
- * uses, so the page count is exact rather than guessed. */
-function fitColumns(students, title, termLabel, maxPages, cb) {
+/* How many pages a roster will come to at a given width.
+ *
+ * Renders a candidate off-screen and walks the real row heights rather than
+ * multiplying one card's, because a two-line name makes its row taller than
+ * its neighbours. Only used to tell you what you are about to send to the
+ * printer — the width itself is yours to choose, in settings. */
+function pageCount(html, cb) {
   var f = el("iframe", { style: { position: "fixed", left: "-10000px", top: "0",
     width: (8.5 - 1) * 96 + "px", height: (11 - 1) * 96 + "px", border: "0" } });
   document.body.appendChild(f);
-  var cols = 3;
-  function attempt() {
-    var html = photoRosterDoc(students, title, termLabel, cols);
-    var d = f.contentDocument;
-    d.open(); d.write(html); d.close();
-    setTimeout(function () {
-      var head = d.querySelector("header");
-      var rows = [].map.call(d.querySelectorAll(".grid-row"), function (r) {
-        return r.getBoundingClientRect().height;
-      });
-      var usable = (11 - 1) * 96, gap = 0.11 * 96, SLACK = 3;
-      var pages = 1, y = head ? head.getBoundingClientRect().height : 40;
-      rows.forEach(function (h, i) {
-        if (i > 0) y += gap;
-        if (y + h > usable + SLACK) { pages++; y = 0; }
-        y += h;
-      });
-      if (DEBUG) console.log("[console] " + cols + " cols -> " + pages + " pages");
-      if (pages <= maxPages || cols >= 12) { f.remove(); cb(cols, html); return; }
-      cols++; attempt();
-    }, 40);
-  }
-  attempt();
+  var d = f.contentDocument;
+  d.open(); d.write(html); d.close();
+  setTimeout(function () {
+    var head = d.querySelector("header");
+    var rows = [].map.call(d.querySelectorAll(".grid-row"), function (r) {
+      return r.getBoundingClientRect().height;
+    });
+    var usable = (11 - 1) * 96, gap = 0.11 * 96, SLACK = 3;
+    var pages = 1, y = head ? head.getBoundingClientRect().height : 40;
+    rows.forEach(function (h, i) {
+      if (i > 0) y += gap;
+      if (y + h > usable + SLACK) { pages++; y = 0; }
+      y += h;
+    });
+    f.remove();
+    cb(pages);
+  }, 40);
 }

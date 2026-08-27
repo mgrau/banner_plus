@@ -280,6 +280,22 @@ CHECKS = [
       if (!/Reset table column widths/.test(d)) return "no width reset";
       if (!drawer().querySelector('a[href*="github.com"]')) return "no source link";
       if (/CSV/.test(d)) return "the removed CSV export is back";
+
+      // Faces per row: defaults to 5, moves, and remembers.
+      const range = drawer().querySelector('input[type="range"]');
+      if (!range) return "no faces-per-row slider";
+      if (range.value !== "5") return "slider defaults to " + range.value + ", expected 5";
+      if (!/Faces per row/.test(d)) return "slider is unlabelled";
+      range.value = "8";
+      range.dispatchEvent(new Event("input", { bubbles: true }));
+      await sleep(30);
+      // The label row sits directly above the input; its text ends in the
+      // readout. Not the whole row — textContent runs the tick marks together
+      // with it, so "8" would match the "8" hiding inside "2" and "10".
+      const head = text(range.previousElementSibling);
+      if (!/Faces per row8$/.test(head)) return "the readout says: " + head;
+      if (localStorage.getItem("banner_console_cols") !== "8")
+        return "not persisted: " + localStorage.getItem("banner_console_cols");
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
       await sleep(300);
       if (drawer().style.visibility !== "hidden") return "Escape did not close it";
@@ -322,6 +338,17 @@ CHECKS = [
       await sleep(80);
       if (!/added to Drop target/.test(status())) return "status says: " + status();
       if (!/1 students/.test(text(groupRows()[0]))) return "group shows " + text(groupRows()[0]);
+      return true;
+    """),
+
+    ("the slider sets how many faces reach a printed row", r"""
+      await openFall101();
+      for (const n of [2, 5, 9]) {
+        const html = photoRosterDoc(S.students, "PHYS 101", "Fall 2026", n);
+        // Each card claims a 1/n share of the row, less the gaps between them.
+        const want = "calc((100% - " + (n - 1) + " * .1in) / " + n + ")";
+        if (html.indexOf(want) < 0) return n + " across did not reach the card width";
+      }
       return true;
     """),
 
@@ -374,7 +401,8 @@ CHECKS = [
 # The last three checks reach into the console's own scope, which a bookmarklet
 # does not expose. They run with the IIFE opened up; see harness().
 INTERNAL = {"printed photo roster fits and carries a legend",
-            "printed free-time sheet names who was left out"}
+            "printed free-time sheet names who was left out",
+            "the slider sets how many faces reach a printed row"}
 
 # Checks that start somewhere other than the class-list page. The default is
 # the class list because that is where most people click it; /menu is the case

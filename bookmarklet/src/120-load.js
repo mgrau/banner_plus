@@ -14,9 +14,13 @@
 function printPhotoRoster() {
   var group = selectedStudents();
   taskBegin("Laying out roster…");
-  fitColumns(group, S.source.label, curLabel(), 2, function (cols, html) {
-    idle(group.length + " students · " + cols + " columns");
-    openDoc(html, true);
+  var html = photoRosterDoc(group, S.source.label, curLabel(), printCols);
+  // Open first, then count. The page count is a courtesy in the status line
+  // and should not stand between the click and the print dialog.
+  openDoc(html, true);
+  pageCount(html, function (pages) {
+    idle(group.length + " students · " + printCols + " per row · " +
+         pages + " page" + (pages === 1 ? "" : "s"));
   });
 }
 
