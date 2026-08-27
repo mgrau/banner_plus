@@ -144,6 +144,20 @@ CHECKS = [
       return true;
     """),
 
+    ("the photo grid shows a UIN under every name", r"""
+      await openFall101();
+      const cards = $$("img", main()).map((i) => i.parentNode);
+      if (cards.length !== 3) return cards.length + " cards";
+      for (const uin of ["01234567", "01234568", "01234569"])
+        if (!cards.some((c) => text(c).indexOf(uin) > -1))
+          return "no " + uin + " on any card: " + cards.map(text).join(" | ");
+      // Under the name, above the major — reading order, not just present.
+      const c = cards.filter((c) => /Jane A Doe/.test(text(c)))[0];
+      const order = Array.from(c.children).map(text).join(">");
+      if (!/Jane A Doe>01234567>Physics/.test(order)) return "wrong order: " + order;
+      return true;
+    """),
+
     ("names are title-cased, apostrophes and hyphens kept", r"""
       await openFall101();
       const names = $$("div", main()).map(text);
@@ -317,6 +331,8 @@ CHECKS = [
       if (!/PHYS 101 &mdash; Fall 2026/.test(html)) return "no title";
       if (!/3 students/.test(html)) return "no count";
       if (!/Physics \(2\)/.test(html)) return "no major legend: " + html.slice(0, 400);
+      for (const uin of ["01234567", "01234568", "01234569"])
+        if (html.indexOf('class="uin">' + uin) < 0) return "no UIN " + uin + " on the sheet";
       if (!(html.match(/class="card"/g) || []).length === 3) return "wrong card count";
       if (!/directory information confidential/.test(html)) return "no confidential note";
       if (!/charset=utf-8|<meta charset=utf-8>/.test(html)) return "no charset";

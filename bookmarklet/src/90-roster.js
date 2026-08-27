@@ -145,6 +145,10 @@ function renderMain() {
     card.appendChild(img);
     card.appendChild(el("div", { text: s.name, style: {
       fontSize: "11.5px", fontWeight: "600", marginTop: "4px", lineHeight: "1.2" } }));
+    // Tabular figures so a column of them lines up digit for digit.
+    if (s.uin) card.appendChild(el("div", { text: s.uin, style: {
+      fontSize: "10px", color: "#5b6675", lineHeight: "1.25",
+      fontVariantNumeric: "tabular-nums" } }));
     card.appendChild(el("div", { text: (s.majors || []).join(" / "), style: {
       fontSize: "10px", color: "#6b7280", lineHeight: "1.2",
       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }));

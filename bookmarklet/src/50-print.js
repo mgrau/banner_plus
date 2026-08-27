@@ -27,6 +27,9 @@ function pageCSS() {
     ".nm{font-size:8.3pt;font-weight:600;line-height:1.15;margin-top:.04in}" +
     ".sem{font-weight:400;color:#666}" +
     ".conf{font-size:6.4pt;font-weight:700;color:#fff;background:#b3261e;border-radius:2px;padding:0 2.5px}" +
+    // Tabular figures so a column of UINs lines up digit for digit, which is
+    // what makes one scannable against a list you are holding.
+    ".uin{font-size:6.9pt;color:#5b6675;font-variant-numeric:tabular-nums;line-height:1.25}" +
     ".mj{font-size:7.3pt;margin-top:.035in;padding:.02in .05in;border-radius:4px;border:1px solid;display:inline-block;line-height:1.2}" +
     ".hm{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed;font-size:8pt}" +
     ".hm th{font-size:7.6pt;color:#5b6675;font-weight:600;padding:2px;text-align:center}" +
@@ -55,6 +58,7 @@ function photoRosterDoc(students, title, termLabel, cols) {
       '<img class="photo" src="' + (s.photo || SILHOUETTE) + '" alt="' + esc(s.name) + '">' +
       '<div class="nm">' + esc(s.name) + ' <span class="sem">(' + sem + "Y)</span>" +
       (s.confidential ? ' <span class="conf">C</span>' : "") + "</div>" +
+      (s.uin ? '<div class="uin">' + esc(s.uin) + "</div>" : "") +
       '<div class="mj" style="background:' + t.bg + ";border-color:" + info.color + ";color:" + t.fg + '">' +
       esc((s.majors || []).join(" / ")) + "</div></div>";
   });
