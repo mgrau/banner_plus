@@ -51,12 +51,17 @@ student's identity and every term of their registration history already in the
 link — no clipboard, no pasting, no parser at the far end guessing at columns.
 
 The record travels in the URL's **fragment**, which stays in the browser: it is
-not sent in the HTTP request, so it never reaches GitHub's servers. The format
-is in [`IMPORT.md`](IMPORT.md), which is the contract between the two apps.
+not sent in the HTTP request, so it never reaches GitHub's servers.
 
-**The planner does not read it yet.** Banner Plus emits the link; `IMPORT.md`
-specifies what the planner should do with it, including how to update a student
-it already holds without destroying an advisor's work.
+The planner creates the student if it has never seen them and updates them if it
+has, showing the advisor what it would do before doing any of it. It keeps its
+own work: an import never touches notes, prior credits, or any term beyond the
+last one the link carries.
+
+The payload is built in `bookmarklet/src/55-planner.js` and read by the
+planner's `src/lib/import/bannerPlus.ts`. Those two files are a contract between
+separately deployed apps, so the shape carries a version and the reader refuses
+one it does not know — change either end and change the other.
 
 ### About GPA
 

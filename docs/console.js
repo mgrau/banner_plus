@@ -1111,8 +1111,13 @@
    * structure. A link carries the whole record exactly as Banner reported it,
    * and arrives already parsed.
    *
-   * The format is specified in IMPORT.md, which is the contract between the two
-   * apps. Change one, change both.
+   * THE FORMAT IS A CONTRACT WITH ANOTHER REPOSITORY
+   *
+   * The reader is semester-planner's src/lib/import/bannerPlus.ts, where the
+   * payload is a set of TypeScript interfaces and the version is checked on
+   * arrival. Nothing here is validated by anything there at build time — the two
+   * apps deploy separately — so a change to the shape below is a change to that
+   * file, and `v` exists so that a mismatch says so instead of misreading.
    */
 
   var PLANNER_URL = "https://mgrau.github.io/semester-planner/";
@@ -2663,8 +2668,8 @@
       links.appendChild(prof);
     }
 
-    /* The whole record travels in the link's fragment — see 55-planner.js and
-     * IMPORT.md. Nothing to paste, and nothing to parse at the far end. */
+    /* The whole record travels in the link's fragment — see 55-planner.js.
+     * Nothing to paste, and nothing to parse at the far end. */
     var pbtn = btn("Semester Planner ↗", true);
     pbtn.title = "Opens the planner with this student's terms and coursework " +
       "already filled in. Nothing is uploaded: the record travels in the link.";

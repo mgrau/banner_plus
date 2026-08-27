@@ -134,8 +134,8 @@ function exitLinks(s) {
     links.appendChild(prof);
   }
 
-  /* The whole record travels in the link's fragment — see 55-planner.js and
-   * IMPORT.md. Nothing to paste, and nothing to parse at the far end. */
+  /* The whole record travels in the link's fragment — see 55-planner.js.
+   * Nothing to paste, and nothing to parse at the far end. */
   var pbtn = btn("Semester Planner ↗", true);
   pbtn.title = "Opens the planner with this student's terms and coursework " +
     "already filled in. Nothing is uploaded: the record travels in the link.";
