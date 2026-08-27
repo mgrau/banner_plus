@@ -1,11 +1,16 @@
 # Handing a student to the Semester Planner
 
-Banner Plus can open [semester-planner](https://github.com/mgrau/semester_planner)
+Banner Plus can open [semester-planner](https://github.com/mgrau/semester-planner)
 with a student's whole registration history already in the URL. The planner
 creates that student if it has never seen them, and updates them if it has.
 
 This document is the contract between the two. Banner Plus emits it today; the
 planner does not read it yet.
+
+The same file lives in
+[semester-planner/IMPORT.md](https://github.com/mgrau/semester-planner/blob/main/IMPORT.md),
+written from the reading end and with the shape of the work still to do there.
+A change here has to be a change there.
 
 ---
 

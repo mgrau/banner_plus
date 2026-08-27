@@ -46,7 +46,7 @@ sheet.
 ### Handing a student to the planner
 
 The student pane opens
-[semester-planner](https://github.com/mgrau/semester_planner) with that
+[semester-planner](https://github.com/mgrau/semester-planner) with that
 student's identity and every term of their registration history already in the
 link — no clipboard, no pasting, no parser at the far end guessing at columns.
 
