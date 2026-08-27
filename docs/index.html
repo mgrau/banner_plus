@@ -6,96 +6,155 @@
 <style>
   :root {
     color-scheme: light dark;
-    --ink:#141922; --dim:#5b6675; --line:#e2e7f0;
-    --bg1:#eef3ff; --bg2:#fbfcff; --card:#ffffff;
-    --accent:#2f6bdd; --accent2:#5b93ff; --shadow:rgba(30,50,100,.18);
+    --ink:#101622; --dim:#5d6a7d; --faint:#8e9aab; --line:#e0e6f0;
+    --bg:#eef2fb; --bg2:#f9fbff; --card:#ffffff;
+    --accent:#2f6bdd; --accent2:#63a0ff; --deep:#1b2540;
+    --shadow:rgba(24,44,92,.18);
+    --chrome:#dfe5f0; --chrome-ink:#7c8798;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --ink:#e9edf5; --dim:#9aa6b8; --line:#283040;
-      --bg1:#111725; --bg2:#0c1018; --card:#161c28;
-      --accent:#4d86ff; --accent2:#7aa6ff; --shadow:rgba(0,0,0,.5);
+      --ink:#eaeff8; --dim:#9aa7bb; --faint:#6d7a8d; --line:#232c3e;
+      --bg:#0b0f1a; --bg2:#10151f; --card:#151b28;
+      --accent:#5b93ff; --accent2:#8fb8ff; --deep:#0a0e18;
+      --shadow:rgba(0,0,0,.6);
+      --chrome:#1b2231; --chrome-ink:#5f6b7d;
     }
   }
   * { box-sizing:border-box }
   html,body { margin:0 }
-  body { background: radial-gradient(1100px 560px at 50% -10%, var(--bg1), var(--bg2)) fixed;
-         color:var(--ink);
-         font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Arial,sans-serif;
-         -webkit-font-smoothing:antialiased }
-  main { max-width:52rem; margin:0 auto; padding:3rem 1.25rem 4rem }
-  h1 { font-size:clamp(2rem,5vw,2.9rem); margin:0; letter-spacing:-.035em; font-weight:800 }
-  .tag { color:var(--dim); font-size:1.08rem; margin:.5rem 0 2.2rem }
-  h2 { font-size:1.05rem; margin:2.6rem 0 .7rem; letter-spacing:-.01em }
-  .drag { display:flex; align-items:center; gap:1.1rem; background:var(--card);
-          border:1px solid var(--line); border-radius:14px; padding:1.3rem 1.4rem;
-          box-shadow:0 4px 18px -6px var(--shadow) }
-  .bm { display:inline-block; flex:0 0 auto; padding:.7rem 1.4rem; border-radius:10px;
-        cursor:grab; white-space:nowrap; font-weight:700; font-size:1.02rem;
-        color:#fff !important; text-decoration:none;
+  body {
+    background:
+      radial-gradient(900px 480px at 12% -8%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%),
+      radial-gradient(760px 440px at 92% 4%, color-mix(in srgb, var(--accent2) 14%, transparent), transparent 70%),
+      linear-gradient(var(--bg), var(--bg2));
+    background-attachment: fixed;
+    color:var(--ink);
+    font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  main { max-width:60rem; margin:0 auto; padding:3.4rem 1.25rem 3rem }
+
+  /* ---- hero ---------------------------------------------------------- */
+  .hero { text-align:center; margin-bottom:2.4rem }
+  h1 { font-size:clamp(2.4rem,7vw,4rem); margin:0; letter-spacing:-.045em; font-weight:800;
+       background:linear-gradient(180deg, var(--ink), color-mix(in srgb, var(--ink) 62%, var(--accent)));
+       -webkit-background-clip:text; background-clip:text; color:transparent }
+  .tag { color:var(--dim); font-size:1.14rem; margin:.7rem auto 0; max-width:32rem }
+
+  /* ---- the drag target ------------------------------------------------ */
+  .install { margin:0 auto 1rem; max-width:34rem }
+  .browser { border:1px solid var(--line); border-radius:14px; overflow:hidden;
+             background:var(--card); box-shadow:0 18px 44px -20px var(--shadow) }
+  .toolbar { display:flex; align-items:center; gap:.4rem; padding:.55rem .8rem;
+             background:var(--chrome) }
+  .toolbar i { width:9px; height:9px; border-radius:50%; background:var(--chrome-ink);
+               opacity:.45; display:block }
+  .toolbar i:first-child { margin-right:.15rem }
+  .marks { display:flex; align-items:center; gap:.5rem; padding:.42rem .8rem;
+           background:color-mix(in srgb, var(--chrome) 55%, var(--card));
+           border-bottom:1px solid var(--line); font-size:.76rem; color:var(--faint) }
+  .marks b { font-weight:500; display:flex; align-items:center; gap:.25rem; white-space:nowrap }
+  .marks b::before { content:""; width:11px; height:11px; border-radius:3px;
+                     background:var(--chrome-ink); opacity:.4 }
+  .slot { margin-left:auto; border:1.5px dashed var(--accent); border-radius:5px;
+          padding:.1rem .6rem; color:var(--accent); font-weight:600;
+          animation:pulse 2.4s ease-in-out infinite }
+  @keyframes pulse { 0%,100%{opacity:.45} 50%{opacity:1} }
+  .stage { position:relative; padding:3.6rem 1rem 2.4rem; text-align:center;
+           background:repeating-linear-gradient(45deg, transparent 0 9px,
+             color-mix(in srgb, var(--line) 40%, transparent) 9px 10px) }
+  .bm { display:inline-block; padding:.72rem 1.5rem; border-radius:11px;
+        font-weight:700; font-size:1.06rem; letter-spacing:-.01em;
+        color:#fff !important; text-decoration:none; cursor:grab; white-space:nowrap;
         background:linear-gradient(180deg,var(--accent2),var(--accent));
-        box-shadow:0 1px 0 rgba(255,255,255,.4) inset, 0 6px 16px -6px var(--shadow) }
-  .bm:active { cursor:grabbing }
-  .drag .meta { min-width:0; color:var(--dim); font-size:.92rem; line-height:1.45 }
-  .does { list-style:none; padding:0; margin:1.4rem 0 0 }
-  .does li { display:flex; gap:.75rem; padding:.62rem 0; border-top:1px solid var(--line);
-             font-size:.94rem; line-height:1.5 }
-  .does b { flex:0 0 9.5rem; font-weight:600; color:var(--ink) }
-  .does span { color:var(--dim); min-width:0 }
-  ol { color:var(--dim); font-size:.95rem; padding-left:1.2rem }
-  li { margin:.4rem 0 }
-  code { background:var(--card); border:1px solid var(--line); border-radius:4px;
-         padding:.08em .35em; font-size:.86em }
-  .note { border-left:3px solid var(--accent); background:var(--card);
-          padding:.85rem 1rem; border-radius:0 10px 10px 0; margin:1.6rem 0;
-          font-size:.93rem }
-  footer { margin-top:3rem; padding-top:1.2rem; border-top:1px solid var(--line);
-           color:var(--dim); font-size:.86rem }
-  footer a { color:var(--accent) }
+        box-shadow:0 1px 0 rgba(255,255,255,.45) inset, 0 10px 22px -10px var(--shadow);
+        transition:transform .12s ease }
+  .bm:hover { transform:translateY(-2px) }
+  .bm:active { cursor:grabbing; transform:translateY(0) }
+  /* Sits in the stage's top padding, so it runs from above the button to the
+     slot in the bar without ever crossing either. */
+  .arrow { position:absolute; right:1.5rem; top:.45rem; width:min(210px,52%); height:46px;
+           pointer-events:none; overflow:visible }
+  .arrow path { fill:none; stroke:var(--accent); stroke-width:2.2; stroke-linecap:round;
+                stroke-dasharray:5 5; animation:crawl 1s linear infinite }
+  @keyframes crawl { to { stroke-dashoffset:-20 } }
+  /* The head is its own square SVG so that stretching the curve to fit the
+     card cannot stretch the arrowhead with it. */
+  .tip { position:absolute; right:1.2rem; top:.1rem; width:18px; height:18px;
+         pointer-events:none }
+  .tip polygon { fill:var(--accent) }
+  @media (prefers-reduced-motion: reduce) {
+    .arrow path, .slot { animation:none }
+  }
+  .step { text-align:center; color:var(--dim); font-size:.95rem; margin:.9rem 0 0 }
+  .step b { color:var(--ink); font-weight:600 }
+
+  /* ---- the cartoon ---------------------------------------------------- */
+  .figure { margin:3.2rem 0 0; overflow-x:auto }
+  .shot { display:block; width:100%; min-width:640px; height:auto }
+  .w-edge { stroke:var(--line) }
+  .w-url { font:9px ui-monospace,Menlo,monospace; fill:#8b95a6 }
+  .w-brand { font:700 13px -apple-system,Segoe UI,Arial,sans-serif; fill:#eceff4 }
+  .w-pill { font:10.5px -apple-system,Segoe UI,Arial,sans-serif; fill:#eceff4 }
+  .w-status { font:10.5px -apple-system,Segoe UI,Arial,sans-serif; fill:#9fb4d0 }
+  .w-label { font:700 8.5px -apple-system,Segoe UI,Arial,sans-serif; fill:#6b7280;
+             letter-spacing:.09em }
+  .w-count { font:700 9.5px -apple-system,Segoe UI,Arial,sans-serif; fill:#2a78d6;
+             text-anchor:end }
+  .w-day  { font:700 9.5px -apple-system,Segoe UI,Arial,sans-serif; fill:#6b7280;
+            text-anchor:middle }
+  .w-time { font:8.5px -apple-system,Segoe UI,Arial,sans-serif; fill:#9aa1ab; text-anchor:end }
+  .w-cal  { font:600 15px -apple-system,Segoe UI,Arial,sans-serif; fill:var(--dim);
+            text-anchor:middle }
+  .w-lead { stroke:var(--line); stroke-width:1.5 }
+  .w-dot  { fill:var(--accent) }
+
+  /* ---- footer --------------------------------------------------------- */
+  .fine { text-align:center; color:var(--faint); font-size:.86rem; margin:2.4rem auto 0;
+          max-width:34rem; line-height:1.6 }
+  footer { margin-top:1.6rem; text-align:center; color:var(--faint); font-size:.84rem }
+  footer a { color:var(--accent); text-decoration:none; font-weight:500 }
+  footer a:hover { text-decoration:underline }
+  footer span { margin:0 .45rem; opacity:.5 }
 </style></head>
 <body><main>
 
-<h1>Banner Plus</h1>
-<p class="tag">Banner has the data. It has no screen for the questions you
-actually ask it &mdash; so this adds them, inside Banner, on the session you are
-already signed in to.</p>
-
-<div class="drag">
-  <a class="bm" href="javascript:(function()%7Bvar%20d=document,s=d.createElement(%27script%27);s.src=%27https://mgrau.github.io/banner_plus/console.js?v=%27+Date.now();s.onerror=function()%7Balert(%27Banner%20Plus:%20could%20not%20load%20console.js.%20This%20page%20may%20block%20outside%20scripts.%27);%7D;d.body.appendChild(s);%7D)();">Banner Plus</a>
-  <div class="meta">Drag this to your bookmarks bar, open Banner Faculty
-  Self-Service, and click it.<br>
-  <code>&#8984;&#8679;B</code> shows the bar if it is hidden.</div>
+<div class="hero">
+  <h1>Banner Plus</h1>
+  <p class="tag">Your rosters as faces, your advisees as a group, and everyone's
+  free hour &mdash; inside the Banner you already use.</p>
 </div>
 
-<h2>What it does</h2>
-<ul class="does">
-  <li><b>Your classes</b><span>Every section you teach in a term, with enrolment
-      counts, in one list. Or every term at once.</span></li>
-  <li><b>Rosters of faces</b><span>A grid of photographs you can actually learn
-      names from, or a sortable table when you are reading rather than
-      recognising.</span></li>
-  <li><b>Student records</b><span>Photograph, major, standing, this term's
-      schedule with rooms and times, and the full registration history laid out
-      as a transcript &mdash; seasons across, years down, newest first.</span></li>
-  <li><b>Shared free time</b><span>Select any set of students and see when they
-      are collectively not in class. Hover a slot for who is free and who is
-      not.</span></li>
-  <li><b>Groups</b><span>An artificial class of students who share no section
-      &mdash; a research group, your advisees. Search by name, paste UINs, or
-      drag students in from a roster.</span></li>
-  <li><b>Printable sheets</b><span>A photo roster with colour-coded majors,
-      auto-fitted to the page, and a free-time sheet.</span></li>
-</ul>
+<div class="install">
+  <div class="browser">
+    <div class="toolbar"><i></i><i></i><i></i></div>
+    <div class="marks"><b>ODU</b><b>Leo Online</b><b>Grades</b>
+      <span class="slot">drop here</span></div>
+    <div class="stage">
+      <svg class="arrow" viewBox="0 0 210 46" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M8 42 C 84 42, 158 38, 188 16" vector-effect="non-scaling-stroke"/>
+      </svg>
+      <svg class="tip" viewBox="0 0 20 20" aria-hidden="true">
+        <polygon points="18,2 4,7 11,17"/>
+      </svg>
+      <a class="bm" href="javascript:(function()%7Bif(!/facultyssb%7C%5C/FacultySelfService/i.test(location.host+location.pathname))%7Bif(confirm(%27Banner%20Plus%20runs%20inside%20Banner%20Faculty%20Self-Service.%5Cn%5CnOpen%20it%20now?%20Then%20click%20this%20bookmark%20again.%27))location.href=%27https://facultyssb-prod.ec.odu.edu/FacultySelfService/ssb/classListApp/classListPage%27;return;%7Dvar%20d=document,s=d.createElement(%27script%27);s.src=%27https://mgrau.github.io/banner_plus/console.js?v=%27+Date.now();s.onerror=function()%7Balert(%27Banner%20Plus%20could%20not%20load%20console.js%20from%20https://mgrau.github.io/banner_plus.%5Cn%5CnEither%20the%20site%20is%20unreachable,%20or%20this%20page%20blocked%20the%20script%20%5Cu2014%20check%20the%20browser%20console%20for%20a%20Content-Security-Policy%20error.%27);%7D;d.body.appendChild(s);%7D)();" draggable="true">&#10022; Banner Plus</a>
+    </div>
+  </div>
+  <p class="step"><b>Drag it to your bookmarks bar.</b> Then open Banner and click it.<br>
+  No install, no extension, no account.</p>
+</div>
 
-<div class="note">Everything runs in your browser. No student data is sent
-anywhere &mdash; this page is static and has no server behind it. What it
-produces is a named list of students with photographs and grades; treat it the
-way you would treat a gradebook.</div>
+<div class="figure"><svg class="shot" viewBox="0 0 900 528" role="img" aria-label="A drawing of Banner Plus: a term of classes down the left, a roster of photographs in the middle, and a shared free-time heatmap on the right."><clipPath id="win"><rect x="8" y="8" width="884" height="452" rx="14"/></clipPath><g clip-path="url(#win)"><rect x="8" y="8" width="884" height="452" fill="#eef1f6"/><rect x="8" y="8" width="884" height="34" fill="#e3e8f0"/><circle cx="28" cy="25" r="5.5" fill="#f0655a"/><circle cx="46" cy="25" r="5.5" fill="#f5be4f"/><circle cx="64" cy="25" r="5.5" fill="#5bc75d"/><rect x="92" y="17" width="320" height="16" rx="8" fill="#f7f9fc"/><text x="104" y="29" class="w-url">facultyssb-prod.ec.odu.edu</text><rect x="8" y="42" width="884" height="36" fill="#1f2430"/><text x="24" y="65" class="w-brand">Banner Plus</text><rect x="122" y="51" width="98" height="19" rx="5" fill="#161a23" stroke="#3b455a"/><text x="131" y="65" class="w-pill">Fall 2026</text><path d="M206 58l5 5 5-5" stroke="#9fb4d0" stroke-width="1.4" fill="none"/><text x="236" y="65" class="w-status">38 students &#183; 36 photos</text><circle cx="866" cy="60" r="9" fill="none" stroke="#3b455a"/><circle cx="866" cy="60" r="3" fill="#9fb4d0"/><rect x="8" y="78" width="884" height="3" fill="#2b3444"/><rect x="8" y="78" width="548" height="3" fill="#4c8dff"/><rect x="8" y="81" width="168" height="379" fill="#ffffff"/><rect x="632" y="81" width="260" height="379" fill="#ffffff"/><rect x="630" y="81" width="4" height="379" fill="#dde3ec"/><text x="22" y="103" class="w-label">MY CLASSES</text><rect x="14" y="106" width="156" height="32" rx="6" fill="#e7f0fd"/><rect x="14" y="106" width="3" height="32" fill="#2a78d6"/><rect x="24" y="112" width="73.16" height="7" rx="3.5" fill="#41556f"/><rect x="24" y="124" width="118" height="5" rx="2.5" fill="#c7d0dd"/><text x="162" y="119" class="w-count">34</text><rect x="24" y="146" width="64.48" height="7" rx="3.5" fill="#41556f"/><rect x="24" y="158" width="104" height="5" rx="2.5" fill="#c7d0dd"/><text x="162" y="153" class="w-count">29</text><rect x="24" y="180" width="68.2" height="7" rx="3.5" fill="#41556f"/><rect x="24" y="192" width="110" height="5" rx="2.5" fill="#c7d0dd"/><text x="162" y="187" class="w-count">22</text><rect x="24" y="214" width="59.519999999999996" height="7" rx="3.5" fill="#41556f"/><rect x="24" y="226" width="96" height="5" rx="2.5" fill="#c7d0dd"/><text x="162" y="221" class="w-count">11</text><text x="22" y="258" class="w-label">GROUPS</text><rect x="24" y="268" width="92" height="7" rx="3.5" fill="#41556f"/><rect x="24" y="280" width="62" height="5" rx="2.5" fill="#c7d0dd"/><rect x="24" y="300" width="78" height="7" rx="3.5" fill="#41556f"/><rect x="24" y="312" width="48" height="5" rx="2.5" fill="#c7d0dd"/><rect x="14" y="330" width="156" height="24" rx="6" fill="none" stroke="#c7d0dd" stroke-dasharray="4 3"/><rect x="190" y="96" width="116" height="11" rx="5" fill="#16191f"/><rect x="316" y="99" width="62" height="7" rx="3.5" fill="#9aa1ab"/><rect x="470" y="94" width="70" height="17" rx="6" fill="#2a78d6"/><rect x="548" y="94" width="34" height="17" rx="6" fill="#ffffff" stroke="#c7d0dd"/><rect x="590" y="94" width="36" height="17" rx="6" fill="#ffffff" stroke="#c7d0dd"/><rect x="190" y="124" width="98" height="132" rx="8" fill="#ffffff" stroke="#d8dde5"/><rect x="195" y="130" width="88" height="88" rx="5" fill="#e8eaee"/><circle cx="239.0" cy="163.44" r="14.96" fill="#c2c8d2"/><path d="M210.84 218 a28.16 29.92 0 0 1 56.32 0 Z" fill="#c2c8d2"/><rect x="197" y="224" width="60" height="7" rx="3.5" fill="#41556f"/><rect x="197" y="236" width="48" height="12" rx="4" fill="#e5effa" stroke="#2a78d6"/><rect x="300" y="124" width="98" height="132" rx="8" fill="#ffffff" stroke="#d8dde5"/><rect x="305" y="130" width="88" height="88" rx="5" fill="#e8eaee"/><circle cx="349.0" cy="163.44" r="14.96" fill="#c2c8d2"/><path d="M320.84 218 a28.16 29.92 0 0 1 56.32 0 Z" fill="#c2c8d2"/><rect x="307" y="224" width="67" height="7" rx="3.5" fill="#41556f"/><rect x="307" y="236" width="61" height="12" rx="4" fill="#e4f5ef" stroke="#1baf7a"/><rect x="410" y="124" width="98" height="132" rx="8" fill="#ffffff" stroke="#d8dde5"/><rect x="415" y="130" width="88" height="88" rx="5" fill="#e8eaee"/><circle cx="459.0" cy="163.44" r="14.96" fill="#c2c8d2"/><path d="M430.84 218 a28.16 29.92 0 0 1 56.32 0 Z" fill="#c2c8d2"/><rect x="417" y="224" width="74" height="7" rx="3.5" fill="#41556f"/><rect x="417" y="236" width="52" height="12" rx="4" fill="#e9e7f4" stroke="#4a3aa7"/><rect x="520" y="124" width="98" height="132" rx="8" fill="#ffffff" stroke="#d8dde5"/><rect x="525" y="130" width="88" height="88" rx="5" fill="#e8eaee"/><circle cx="569.0" cy="163.44" r="14.96" fill="#c2c8d2"/><path d="M540.84 218 a28.16 29.92 0 0 1 56.32 0 Z" fill="#c2c8d2"/><rect x="527" y="224" width="81" height="7" rx="3.5" fill="#41556f"/><rect x="527" y="236" width="65" height="12" rx="4" fill="#fce9e9" stroke="#e34948"/><rect x="190" y="268" width="98" height="132" rx="8" fill="#ffffff" stroke="#d8dde5"/><rect x="195" y="274" width="88" height="88" rx="5" fill="#e8eaee"/><circle cx="239.0" cy="307.44" r="14.96" fill="#c2c8d2"/><path d="M210.84 362 a28.16 29.92 0 0 1 56.32 0 Z" fill="#c2c8d2"/><rect x="197" y="368" width="71" height="7" rx="3.5" fill="#41556f"/><rect x="197" y="380" width="48" height="12" rx="4" fill="#fce9e9" stroke="#e34948"/><rect x="300" y="268" width="98" height="132" rx="8" fill="#ffffff" stroke="#d8dde5"/><rect x="305" y="274" width="88" height="88" rx="5" fill="#e8eaee"/><circle cx="349.0" cy="307.44" r="14.96" fill="#c2c8d2"/><path d="M320.84 362 a28.16 29.92 0 0 1 56.32 0 Z" fill="#c2c8d2"/><rect x="307" y="368" width="78" height="7" rx="3.5" fill="#41556f"/><rect x="307" y="380" width="61" height="12" rx="4" fill="#fdede7" stroke="#eb6834"/><rect x="410" y="268" width="98" height="132" rx="8" fill="#ffffff" stroke="#d8dde5"/><rect x="415" y="274" width="88" height="88" rx="5" fill="#e8eaee"/><circle cx="459.0" cy="307.44" r="14.96" fill="#c2c8d2"/><path d="M430.84 362 a28.16 29.92 0 0 1 56.32 0 Z" fill="#c2c8d2"/><rect x="417" y="368" width="85" height="7" rx="3.5" fill="#41556f"/><rect x="417" y="380" width="52" height="12" rx="4" fill="#e0f0e0" stroke="#008300"/><rect x="520" y="268" width="98" height="132" rx="8" fill="#ffffff" stroke="#d8dde5"/><rect x="525" y="274" width="88" height="88" rx="5" fill="#e8eaee"/><circle cx="569.0" cy="307.44" r="14.96" fill="#c2c8d2"/><path d="M540.84 362 a28.16 29.92 0 0 1 56.32 0 Z" fill="#c2c8d2"/><rect x="527" y="368" width="66" height="7" rx="3.5" fill="#41556f"/><rect x="527" y="380" width="65" height="12" rx="4" fill="#e5effa" stroke="#2a78d6"/><rect x="190" y="412" width="98" height="132" rx="8" fill="#ffffff" stroke="#d8dde5"/><rect x="195" y="418" width="88" height="88" rx="5" fill="#e8eaee"/><circle cx="239.0" cy="451.44" r="14.96" fill="#c2c8d2"/><path d="M210.84 506 a28.16 29.92 0 0 1 56.32 0 Z" fill="#c2c8d2"/><rect x="197" y="512" width="82" height="7" rx="3.5" fill="#41556f"/><rect x="197" y="524" width="48" height="12" rx="4" fill="#e5effa" stroke="#2a78d6"/><rect x="300" y="412" width="98" height="132" rx="8" fill="#ffffff" stroke="#d8dde5"/><rect x="305" y="418" width="88" height="88" rx="5" fill="#e8eaee"/><circle cx="349.0" cy="451.44" r="14.96" fill="#c2c8d2"/><path d="M320.84 506 a28.16 29.92 0 0 1 56.32 0 Z" fill="#c2c8d2"/><rect x="307" y="512" width="63" height="7" rx="3.5" fill="#41556f"/><rect x="307" y="524" width="61" height="12" rx="4" fill="#e4f5ef" stroke="#1baf7a"/><rect x="410" y="412" width="98" height="132" rx="8" fill="#ffffff" stroke="#d8dde5"/><rect x="415" y="418" width="88" height="88" rx="5" fill="#e8eaee"/><circle cx="459.0" cy="451.44" r="14.96" fill="#c2c8d2"/><path d="M430.84 506 a28.16 29.92 0 0 1 56.32 0 Z" fill="#c2c8d2"/><rect x="417" y="512" width="70" height="7" rx="3.5" fill="#41556f"/><rect x="417" y="524" width="52" height="12" rx="4" fill="#e9e7f4" stroke="#4a3aa7"/><rect x="520" y="412" width="98" height="132" rx="8" fill="#ffffff" stroke="#d8dde5"/><rect x="525" y="418" width="88" height="88" rx="5" fill="#e8eaee"/><circle cx="569.0" cy="451.44" r="14.96" fill="#c2c8d2"/><path d="M540.84 506 a28.16 29.92 0 0 1 56.32 0 Z" fill="#c2c8d2"/><rect x="527" y="512" width="77" height="7" rx="3.5" fill="#41556f"/><rect x="527" y="524" width="65" height="12" rx="4" fill="#fce9e9" stroke="#e34948"/><rect x="648" y="100" width="88" height="10" rx="5" fill="#16191f"/><rect x="648" y="116" width="168" height="6" rx="3" fill="#9aa1ab"/><text x="682" y="140" class="w-day">M</text><text x="724" y="140" class="w-day">T</text><text x="766" y="140" class="w-day">W</text><text x="808" y="140" class="w-day">R</text><text x="850" y="140" class="w-day">F</text><text x="656" y="155" class="w-time">9</text><rect x="662" y="146" width="40" height="13" rx="2" fill="#9ec5f4"/><rect x="704" y="146" width="40" height="13" rx="2" fill="#3987e5"/><rect x="746" y="146" width="40" height="13" rx="2" fill="#9ec5f4"/><rect x="788" y="146" width="40" height="13" rx="2" fill="#3987e5"/><rect x="830" y="146" width="40" height="13" rx="2" fill="#6da7ec"/><rect x="662" y="161" width="40" height="13" rx="2" fill="#cde2fb"/><rect x="704" y="161" width="40" height="13" rx="2" fill="#6da7ec"/><rect x="746" y="161" width="40" height="13" rx="2" fill="#cde2fb"/><rect x="788" y="161" width="40" height="13" rx="2" fill="#6da7ec"/><rect x="830" y="161" width="40" height="13" rx="2" fill="#9ec5f4"/><rect x="662" y="176" width="40" height="13" rx="2" fill="#cde2fb"/><rect x="704" y="176" width="40" height="13" rx="2" fill="#6da7ec"/><rect x="746" y="176" width="40" height="13" rx="2" fill="#cde2fb"/><rect x="788" y="176" width="40" height="13" rx="2" fill="#6da7ec"/><rect x="830" y="176" width="40" height="13" rx="2" fill="#9ec5f4"/><rect x="662" y="191" width="40" height="13" rx="2" fill="#9ec5f4"/><rect x="704" y="191" width="40" height="13" rx="2" fill="#9ec5f4"/><rect x="746" y="191" width="40" height="13" rx="2" fill="#9ec5f4"/><rect x="788" y="191" width="40" height="13" rx="2" fill="#9ec5f4"/><rect x="830" y="191" width="40" height="13" rx="2" fill="#6da7ec"/><text x="656" y="215" class="w-time">11</text><rect x="662" y="206" width="40" height="13" rx="2" fill="#6da7ec"/><rect x="704" y="206" width="40" height="13" rx="2" fill="#9ec5f4"/><rect x="746" y="206" width="40" height="13" rx="2" fill="#6da7ec"/><rect x="788" y="206" width="40" height="13" rx="2" fill="#9ec5f4"/><rect x="830" y="206" width="40" height="13" rx="2" fill="#3987e5"/><rect x="662" y="221" width="40" height="13" rx="2" fill="#3987e5"/><rect x="704" y="221" width="40" height="13" rx="2" fill="#cde2fb"/><rect x="746" y="221" width="40" height="13" rx="2" fill="#3987e5"/><rect x="788" y="221" width="40" height="13" rx="2" fill="#cde2fb"/><rect x="830" y="221" width="40" height="13" rx="2" fill="#3987e5"/><rect x="662" y="236" width="40" height="13" rx="2" fill="#3987e5"/><rect x="704" y="236" width="40" height="13" rx="2" fill="#cde2fb"/><rect x="746" y="236" width="40" height="13" rx="2" fill="#3987e5"/><rect x="788" y="236" width="40" height="13" rx="2" fill="#cde2fb"/><rect x="830" y="236" width="40" height="13" rx="2" fill="#256abf"/><rect x="662" y="251" width="40" height="13" rx="2" fill="#256abf"/><rect x="704" y="251" width="40" height="13" rx="2" fill="#6da7ec"/><rect x="746" y="251" width="40" height="13" rx="2" fill="#256abf"/><rect x="788" y="251" width="40" height="13" rx="2" fill="#6da7ec"/><rect x="830" y="251" width="40" height="13" rx="2" fill="#256abf"/><text x="656" y="275" class="w-time">13</text><rect x="662" y="266" width="40" height="13" rx="2" fill="#104281"/><rect x="704" y="266" width="40" height="13" rx="2" fill="#256abf"/><rect x="746" y="266" width="40" height="13" rx="2" fill="#104281"/><rect x="788" y="266" width="40" height="13" rx="2" fill="#256abf"/><rect x="830" y="266" width="40" height="13" rx="2" fill="#104281"/><rect x="662" y="281" width="40" height="13" rx="2" fill="#104281"/><rect x="704" y="281" width="40" height="13" rx="2" fill="#104281"/><rect x="746" y="281" width="40" height="13" rx="2" fill="#104281"/><rect x="788" y="281" width="40" height="13" rx="2" fill="#104281"/><rect x="830" y="281" width="40" height="13" rx="2" fill="#104281"/><rect x="662" y="296" width="40" height="13" rx="2" fill="#256abf"/><rect x="704" y="296" width="40" height="13" rx="2" fill="#104281"/><rect x="746" y="296" width="40" height="13" rx="2" fill="#256abf"/><rect x="788" y="296" width="40" height="13" rx="2" fill="#104281"/><rect x="830" y="296" width="40" height="13" rx="2" fill="#256abf"/><rect x="662" y="311" width="40" height="13" rx="2" fill="#3987e5"/><rect x="704" y="311" width="40" height="13" rx="2" fill="#256abf"/><rect x="746" y="311" width="40" height="13" rx="2" fill="#3987e5"/><rect x="788" y="311" width="40" height="13" rx="2" fill="#256abf"/><rect x="830" y="311" width="40" height="13" rx="2" fill="#3987e5"/><text x="656" y="335" class="w-time">15</text><rect x="662" y="326" width="40" height="13" rx="2" fill="#256abf"/><rect x="704" y="326" width="40" height="13" rx="2" fill="#256abf"/><rect x="746" y="326" width="40" height="13" rx="2" fill="#256abf"/><rect x="788" y="326" width="40" height="13" rx="2" fill="#256abf"/><rect x="830" y="326" width="40" height="13" rx="2" fill="#104281"/><rect x="662" y="341" width="40" height="13" rx="2" fill="#104281"/><rect x="704" y="341" width="40" height="13" rx="2" fill="#104281"/><rect x="746" y="341" width="40" height="13" rx="2" fill="#104281"/><rect x="788" y="341" width="40" height="13" rx="2" fill="#104281"/><rect x="830" y="341" width="40" height="13" rx="2" fill="#104281"/><rect x="662" y="364" width="14" height="8" rx="2" fill="#cde2fb"/><rect x="678" y="364" width="14" height="8" rx="2" fill="#9ec5f4"/><rect x="694" y="364" width="14" height="8" rx="2" fill="#6da7ec"/><rect x="710" y="364" width="14" height="8" rx="2" fill="#3987e5"/><rect x="726" y="364" width="14" height="8" rx="2" fill="#256abf"/><rect x="742" y="364" width="14" height="8" rx="2" fill="#104281"/><rect x="648" y="384" width="236" height="52" rx="7" fill="#fafbfd" stroke="#e6eaf0"/><rect x="658" y="394" width="96" height="7" rx="3.5" fill="#16191f"/><rect x="658" y="408" width="40" height="6" rx="3" fill="#1b7a4b"/><rect x="704" y="408" width="128" height="6" rx="3" fill="#c7d0dd"/><rect x="658" y="420" width="52" height="6" rx="3" fill="#b3261e"/><rect x="716" y="420" width="96" height="6" rx="3" fill="#c7d0dd"/></g><rect x="8" y="8" width="884" height="452" rx="14" fill="none" class="w-edge"/><circle cx="92" cy="462" r="3" class="w-dot"/><path d="M92 462 L92 492" class="w-lead"/><text x="92" y="512" class="w-cal">your classes</text><circle cx="404" cy="462" r="3" class="w-dot"/><path d="M404 462 L404 492" class="w-lead"/><text x="404" y="512" class="w-cal">faces, not rows</text><circle cx="762" cy="462" r="3" class="w-dot"/><path d="M762 462 L762 492" class="w-lead"/><text x="762" y="512" class="w-cal">when everyone is free</text></svg></div>
+
+<p class="fine">Runs in your browser on the Banner session you are already signed
+in to. Nothing is uploaded &mdash; this page is static and has no server behind
+it. What it shows you is a gradebook; treat it like one.</p>
 
 <footer>
-<a href="https://github.com/mgrau/banner_plus">Source</a> &middot;
-<a href="https://github.com/mgrau/banner_plus/blob/main/ENDPOINTS.md">Endpoint notes</a><br>
-Built against Ellucian Banner 9 at Old Dominion University. Endpoint and field
-names differ between installations, so it may need adjusting elsewhere.
+<a href="https://github.com/mgrau/banner_plus">Source</a><span>&middot;</span>
+<a href="https://github.com/mgrau/banner_plus/blob/main/ENDPOINTS.md">Endpoint notes</a><span>&middot;</span>
+<a href="https://github.com/mgrau/banner_plus#tests">How it is tested</a><br>
+Built against Ellucian Banner 9 at Old Dominion University.
 </footer>
 </main></body></html>
