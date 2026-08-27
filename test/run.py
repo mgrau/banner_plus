@@ -359,6 +359,55 @@ CHECKS = [
       return true;
     """),
 
+    ("the planner link carries the whole record in its fragment", r"""
+      await openFall101();
+      const s = S.students.filter((x) => x.uin === "01234567")[0];
+      await hydrate([s], curTerm());
+      const url = plannerLink(s);
+
+      if (url.indexOf("semester-planner") < 0) return "not the planner: " + url.slice(0, 80);
+      const [base, frag] = url.split("#");
+      if (base.indexOf("?") > -1) return "the payload leaked into the query string";
+      if (!/^import=[A-Za-z0-9_-]+$/.test(frag))
+        return "fragment is not base64url: " + frag.slice(0, 60);
+
+      // Decode it the way the planner will have to.
+      const b64 = frag.slice("import=".length).replace(/-/g, "+").replace(/_/g, "/");
+      const bin = atob(b64 + "=".repeat((4 - (b64.length % 4)) % 4));
+      const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+      const p = JSON.parse(new TextDecoder().decode(bytes));
+
+      if (p.v !== 1 || p.source !== "banner-plus") return "bad envelope: " + JSON.stringify(p).slice(0, 80);
+      if (p.student.uin !== "01234567") return "uin is " + p.student.uin;
+      if (p.student.firstName !== "Jane A" || p.student.lastName !== "Doe")
+        return "name split wrong: " + p.student.firstName + " | " + p.student.lastName;
+      if (p.student.admitTerm.season !== "fall" || p.student.admitTerm.year !== 2024)
+        return "admit term: " + JSON.stringify(p.student.admitTerm);
+      if (p.student.majors.join() !== "Physics") return "majors: " + p.student.majors.join();
+
+      // Oldest first, and calendar years — the stub's Spring 2026 is coded
+      // 202520, so reading the code as a calendar year would say 2025.
+      const got = p.terms.map((t) => t.season + " " + t.year).join(" | ");
+      if (got !== "summer 2025 | spring 2026 | fall 2026")
+        return "terms are: " + got;
+
+      const fall = p.terms[2];
+      if (fall.courses.length !== 1) return fall.courses.length + " courses in Fall 2026";
+      const c = fall.courses[0];
+      if (c.code !== "PHYS 101") return "code is " + c.code;
+      if (c.credits !== 4) return "credits is " + JSON.stringify(c.credits) + ", want the number 4";
+      if (c.status !== "in-progress") return "status is " + c.status;
+      if ("grade" in c) return "an ungraded course carries a grade key";
+
+      const past = p.terms[0].courses[0];
+      if (past.grade !== "B+" || past.status !== "completed")
+        return "completed course: " + JSON.stringify(past);
+
+      // A transcript has to fit in a URL.
+      if (url.length > 8000) return "link is " + url.length + " chars for 3 courses";
+      return true;
+    """),
+
     ("the slider sets how many faces reach a printed row", r"""
       await openFall101();
       for (const n of [2, 5, 9]) {
@@ -420,7 +469,8 @@ CHECKS = [
 # does not expose. They run with the IIFE opened up; see harness().
 INTERNAL = {"printed photo roster fits and carries a legend",
             "printed free-time sheet names who was left out",
-            "the slider sets how many faces reach a printed row"}
+            "the slider sets how many faces reach a printed row",
+            "the planner link carries the whole record in its fragment"}
 
 # Checks that start somewhere other than the class-list page. The default is
 # the class list because that is where most people click it; /menu is the case
@@ -452,7 +502,7 @@ def harness(js: str, internal: bool) -> str:
     tail = "})();"
     i = js.rstrip().rfind(tail)
     return (js[:i] + "  window.__bp = { S, el, hydrate, curTerm, "
-            "photoRosterDoc, freeTimeDoc };\n" + js[i:])
+            "photoRosterDoc, freeTimeDoc, plannerLink };\n" + js[i:])
 
 
 def check_script(script: str) -> str:
@@ -531,7 +581,7 @@ def main() -> int:
             internal = name in INTERNAL
             srv.console_js = harness(js, internal)
             if internal:
-                script = ("const {S, el, hydrate, curTerm, photoRosterDoc, freeTimeDoc} "
+                script = ("const {S, el, hydrate, curTerm, photoRosterDoc, freeTimeDoc, plannerLink} "
                           "= window.__bp;\n") + script
             srv.check_js = check_script(script)
             ok, why = run_one(srv, root + START_PAGE.get(name, default_page))

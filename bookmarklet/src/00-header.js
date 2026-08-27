@@ -26,6 +26,7 @@
  *   30-banner       one function per endpoint; no DOM
  *   40-domain       categories, GPA arithmetic, the free/busy map
  *   50-print        the photo roster and free-time sheets
+ *   55-planner      building a semester-planner import link
  *   60-groups       artificial classes, stored in localStorage
  *   70-shell        the overlay: toolbar, progress, drawer, panes
  *   80-sidebar      sections and groups, and the group editor

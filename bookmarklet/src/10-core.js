@@ -14,7 +14,6 @@ var DAY_ABBR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 var DAY_LETTER = ["M", "T", "W", "R", "F", "S", "U"];
 var CONCURRENCY = 6;
 
-var PLANNER_URL = "https://mgrau.github.io/semester-planner/";
 
 // Free-time heatmap geometry.
 var SLOT = 30, DAY_START = 8 * 60, DAY_END = 20 * 60;

@@ -43,6 +43,21 @@ five faces across by default, on a slider in settings, because how big a face
 has to be to be recognised is a judgement about your room — and a free-time
 sheet.
 
+### Handing a student to the planner
+
+The student pane opens
+[semester-planner](https://github.com/mgrau/semester_planner) with that
+student's identity and every term of their registration history already in the
+link — no clipboard, no pasting, no parser at the far end guessing at columns.
+
+The record travels in the URL's **fragment**, which stays in the browser: it is
+not sent in the HTTP request, so it never reaches GitHub's servers. The format
+is in [`IMPORT.md`](IMPORT.md), which is the contract between the two apps.
+
+**The planner does not read it yet.** Banner Plus emits the link; `IMPORT.md`
+specifies what the planner should do with it, including how to update a student
+it already holds without destroying an advisor's work.
+
 ### About GPA
 
 The only GPA shown is the one the transcript's letter grades add up to, and the
@@ -68,6 +83,7 @@ function — so an editor can parse one without the rest, but only the bundle ru
 | `30-banner` | one function per endpoint; no DOM |
 | `40-domain` | categories, GPA arithmetic, the free/busy map |
 | `50-print` | the photo roster and free-time sheets |
+| `55-planner` | building a semester-planner import link |
 | `60-groups` | artificial classes, stored in localStorage |
 | `70-shell` | the overlay: toolbar, progress, drawer, panes |
 | `80-sidebar` | sections and groups, and the group editor |

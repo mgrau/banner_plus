@@ -134,21 +134,13 @@ function exitLinks(s) {
     links.appendChild(prof);
   }
 
+  /* The whole record travels in the link's fragment — see 55-planner.js and
+   * IMPORT.md. Nothing to paste, and nothing to parse at the far end. */
   var pbtn = btn("Semester Planner ↗", true);
-  pbtn.title = "Copies this transcript to the clipboard and opens the planner, " +
-    "which takes a pasted transcript.";
+  pbtn.title = "Opens the planner with this student's terms and coursework " +
+    "already filled in. Nothing is uploaded: the record travels in the link.";
   pbtn.style.flex = "1";
-  pbtn.onclick = function () {
-    var text = plannerText(s);
-    function go() { window.open(PLANNER_URL, "_blank"); }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(function () {
-        // The button says what happened, since the clipboard gives no sign.
-        pbtn.textContent = "Transcript copied — paste it there";
-        go();
-      }, function () { console.log(text); go(); });
-    } else { console.log(text); go(); }
-  };
+  pbtn.onclick = function () { window.open(plannerLink(s), "_blank"); };
   links.appendChild(pbtn);
 
   return links;

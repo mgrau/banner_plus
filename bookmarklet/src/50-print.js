@@ -161,26 +161,6 @@ function openDoc(html, andPrint) {
   return w;
 }
 
-/* Plain-text transcript for mgrau.github.io/semester-planner, which accepts a
- * pasted transcript. The planner is a different origin, so its localStorage is
- * out of reach; the clipboard is the handoff that needs nothing from it. */
-function plannerText(s) {
-  var byTerm = {};
-  (s.history || []).forEach(function (c) {
-    (byTerm[c.termCode] = byTerm[c.termCode] || { label: c.term, rows: [] }).rows.push(c);
-  });
-  var out = [s.name + "  " + s.uin, ""];
-  Object.keys(byTerm).sort().forEach(function (code) {
-    out.push(byTerm[code].label);
-    byTerm[code].rows.forEach(function (c) {
-      out.push("  " + (c.course || "") + "  " + (c.title || "") + "  " +
-        (c.credits || "") + "  " + (c.final || "IP"));
-    });
-    out.push("");
-  });
-  return out.join("\n");
-}
-
 /* How many pages a roster will come to at a given width.
  *
  * Renders a candidate off-screen and walks the real row heights rather than
