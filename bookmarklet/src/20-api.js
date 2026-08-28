@@ -24,14 +24,14 @@ function apiHeaders(extra) {
  * remembered per family, the same way the path prefix is. */
 var bareFor = {};
 
-function fetchJSON(family, url) {
+function fetchAs(family, url, accept, read) {
   function go(bare) {
     return fetch(url, {
       credentials: "same-origin",
-      headers: bare ? { Accept: "application/json" } : apiHeaders()
+      headers: bare ? { Accept: accept } : apiHeaders({ Accept: accept })
     }).then(function (r) {
       if (!r.ok) { var e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
-      return r.json();
+      return read(r);
     });
   }
   /* A 401 here has been seen to be transient — the identical request, bare,
@@ -57,6 +57,20 @@ function fetchJSON(family, url) {
       return pause(600).then(function () { return go(true); });
     });
   });
+}
+
+function fetchJSON(family, url) {
+  return fetchAs(family, url, "application/json", function (r) { return r.json(); });
+}
+
+/* Not everything Banner answers is JSON. The course-detail family — the
+ * description, the prerequisites, the restrictions — returns HTML fragments,
+ * because Banner's own screen drops them straight into a modal. Same prefix
+ * resolution, same header dance, same 401 retry; only the parse differs, and
+ * turning a fragment into text happens later, where there is a DOM to do it
+ * with. */
+function fetchHTML(family, url) {
+  return fetchAs(family, url, "text/html, */*", function (r) { return r.text(); });
 }
 
 /* Banner mixes its path conventions. Recordings show
@@ -96,6 +110,21 @@ function withPrefix(family, run) {
 function apiGet(family, qs) {
   return withPrefix(family, function (p) {
     return fetchJSON(family, base + p + family + (qs ? "?" + qs : ""));
+  });
+}
+
+function apiText(family, qs) {
+  return withPrefix(family, function (p) {
+    return fetchHTML(family, base + p + family + (qs ? "?" + qs : "")).then(function (t) {
+      /* A 200 carrying a whole HTML document is the app shell or a login page,
+       * not a fragment. This is the photo trap in another costume: a wrong
+       * route that answers 200 instead of 404 teaches the resolver the wrong
+       * prefix, and every later call in the family follows it. Rejecting it
+       * here means the fallback still happens. */
+      if (/<!doctype|<html[\s>]/i.test(t))
+        throw new Error(family + ": a whole page, not a fragment");
+      return t;
+    });
   });
 }
 

@@ -116,6 +116,53 @@ MEETINGS = {
               "buildingDescription": "Oceanography", "room": "108"},
 }
 
+# crn -> who teaches it, riding along in the same fmt[] as the meeting times.
+# 10001 lists its primary instructor second, because Banner promises no order
+# and a console that trusts the array's would name the assistant.
+# 30001 has faculty and no meeting time at all — an independent study, or a
+# section nobody has scheduled yet — which is a shape the parser has to survive.
+FACULTY = {
+    "10001": [{"bannerId": "00900101", "displayName": "OKAFOR, ADAEZE",
+               "emailAddress": "aokafor@odu.edu", "primaryIndicator": False},
+              {"bannerId": "00900100", "displayName": "GRAU, MATTHEW",
+               "emailAddress": "mgrau@odu.edu", "primaryIndicator": True}],
+    "10002": [{"bannerId": "00900100", "displayName": "GRAU, MATTHEW",
+               "emailAddress": "mgrau@odu.edu", "primaryIndicator": True}],
+    "20001": [{"bannerId": "00900102", "displayName": "VAN DER BERG, PIETER",
+               "emailAddress": "pvander@odu.edu", "primaryIndicator": True}],
+    "30001": [{"bannerId": "00900103", "displayName": "REYES, CARMEN",
+               "emailAddress": "creyes@odu.edu", "primaryIndicator": True}],
+}
+
+# crn -> the HTML fragments Banner hands its own course-detail modal. Markup,
+# not JSON, and labelled inside the fragment the way Banner labels them.
+COURSE_DETAIL = {
+    "10001": {
+        "getCourseDescription":
+            "<section>Newtonian mechanics for scientists and engineers: kinematics, "
+            "forces, work and energy, and momentum.<br>Laboratory required.</section>",
+        "getPrerequisites":
+            "<span class='status-bold'>Prerequisites: </span>MATH 162M with a minimum grade of C.",
+        "getRestrictions":
+            "<div>Must be enrolled in one of the following Levels:</div><div>Undergraduate</div>",
+        "getCourseAttributes": "<div>Natural Sciences General Education</div>",
+        "getClassDetails":
+            "<span>Associated Term: </span>Fall 2026<br><span>CRN: </span>10001<br>"
+            "<span>Campus: </span>Norfolk<br><span>Schedule Type: </span>Lecture<br>",
+    },
+    "10002": {
+        "getCourseDescription":
+            "<section>Wave mechanics, the Schr&ouml;dinger equation, and angular momentum.</section>",
+    },
+    # A past course, reachable only from the transcript. No prerequisites on
+    # file: an empty body is Banner saying "none", not a failure.
+    "30001": {
+        "getCourseDescription":
+            "<section>Limits, derivatives and integrals of functions of one variable.</section>",
+        "getPrerequisites": "",
+    },
+}
+
 # A 1x1 PNG. Enough for the console to accept as an image and draw.
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
@@ -147,12 +194,17 @@ def curriculum(pidm: str) -> dict:
 class Handler(http.server.BaseHTTPRequestHandler):
     # Which prefix each family answers on, so the resolver has real work to do.
     SSB = {"classList/classListDetail", "courseList/courseList",
+           "courseList/courseInfoAndEnrollmentCounts",
            "studentPagesCommonSearch/fetchTerms",
            "studentPagesCommonSearch/searchResults",
            "registrationHistory/fetchRegistrationHistory",
            "studentContactCardPicture/picture", "classListPicture/picture"}
-    ROOT = {"sectionDetails/getFacultyMeetingTimes", "searchStudent/getProfileDetails",
-            "studentContactCard/retrieveData", "studentDetails/curriculum"}
+    ROOT = {"sectionDetails/getFacultyMeetingTimes", "sectionDetails/getClassDetails",
+            "searchStudent/getProfileDetails",
+            "studentContactCard/retrieveData", "studentDetails/curriculum",
+            "courseDetails/getCourseDescription", "courseDetails/getPrerequisites",
+            "courseDetails/getCorequisites", "courseDetails/getRestrictions",
+            "courseDetails/getCourseAttributes"}
 
     def log_message(self, *a):
         if self.server.verbose:
@@ -273,8 +325,30 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json({"data": curriculum(p)})
 
         if fam == "sectionDetails/getFacultyMeetingTimes":
-            m = MEETINGS.get(q.get("courseReferenceNumber", ""))
-            return self.send_json({"fmt": [{"meetingTime": m}] if m else []})
+            crn = q.get("courseReferenceNumber", "")
+            m, f = MEETINGS.get(crn), FACULTY.get(crn)
+            if not m and not f:
+                return self.send_json({"fmt": []})
+            return self.send_json({"fmt": [{"meetingTime": m, "faculty": f or []}]})
+
+        if fam == "courseList/courseInfoAndEnrollmentCounts":
+            crn = q.get("crn", "")
+            row = ([r for r in SECTIONS.get(q.get("term", ""), [])
+                    if r["courseReferenceNumber"] == crn] or [None])[0]
+            # Someone else's class: the faculty endpoint has nothing to say
+            # about it, which is not the same as the console being broken.
+            if not row:
+                return self.not_found()
+            n = row["courseEnrolmentCount"]
+            return self.send_json(dict(row, maxEnrollmentCount=30,
+                                       seatsAvailCount=30 - n, waitListCount=0))
+
+        # The course-detail family: HTML fragments, and an empty body where
+        # there is nothing on file.
+        tail = fam.split("/")[-1]
+        if fam.startswith("courseDetails/") or fam == "sectionDetails/getClassDetails":
+            frag = COURSE_DETAIL.get(q.get("courseReferenceNumber", ""), {}).get(tail, "")
+            return self.send_blob(frag.encode(), "text/html; charset=utf-8")
 
         return self.not_found()
 

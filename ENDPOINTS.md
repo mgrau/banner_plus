@@ -194,6 +194,40 @@ fmt[].faculty[] { bannerId, displayName, emailAddress, primaryIndicator }
 Keyed by section rather than by student, so one fetch per CRN serves everyone
 enrolled in it. For a class of eighty that is a handful of calls, not eighty.
 
+Both halves are read. `faculty[]` is where the instructor's name comes from, so
+naming who teaches a course costs no extra request — and `primaryIndicator`
+matters, because Banner does not promise the array's order and a section with a
+teaching assistant listed first would otherwise name the wrong person.
+
+The two halves are independent: a section can have faculty and no
+`meetingTime`, or times and no faculty. Both are ordinary.
+
+### Course and section detail
+
+| Endpoint | Keyed by |
+|---|---|
+| `courseDetails/getCourseDescription` | term + crn |
+| `courseDetails/getPrerequisites` | term + crn |
+| `courseDetails/getCorequisites` | term + crn |
+| `courseDetails/getRestrictions` | term + crn |
+| `courseDetails/getCourseAttributes` | term + crn |
+| `sectionDetails/getClassDetails` | term + crn |
+
+All take `?term=&courseReferenceNumber=` and **no `/ssb`**, and all answer with
+an **HTML fragment**, not JSON — Banner drops them straight into its own modal.
+An empty body means "nothing on file", which is an answer rather than a failure.
+
+Two consequences worth knowing. A response is markup from a server, so it is
+turned into text rather than injected — an `<img onerror>` in a fragment would
+otherwise run inside the console. And a 200 carrying a whole HTML document is
+the app shell or a login page, so it has to be rejected in the same breath: a
+wrong route that answers 200 instead of 404 teaches the prefix resolver the
+wrong prefix, which is the photo trap in different clothes.
+
+Seats come from `courseList/courseInfoAndEnrollmentCounts?crn=&term=` in the
+table above, which is JSON. It answers for sections you teach — a student's
+other courses are someone else's class, so nothing there is expected.
+
 ### Student search
 
 `ssb/studentPagesCommonSearch/searchResults` (POST, JSON)
@@ -220,14 +254,14 @@ ssb/classList/studentsEmailAddresses?term=&crn=
 ssb/classListExport/exportExcel?term=&crn=&format=
 ssb/waitlist/waitlistDetail  ·  ssb/waitlist/waitlist
 facultyAttendanceTracking
-courseDetails/*      getCourseDescription, getPrerequisites, getRestrictions,
-                     getCorequisites, getFees, getSyllabus, getCourseAttributes
-sectionDetails/*     getClassDetails, getEnrollmentInfo, getLinkedSections,
-                     getXlstSections, getSectionPrerequisites, getFees
+courseDetails/*      getFees, getSyllabus
+sectionDetails/*     getEnrollmentInfo, getLinkedSections, getXlstSections,
+                     getSectionPrerequisites, getFees
 ```
 
 The `courseDetails` and `sectionDetails` families return HTML fragments rather
-than JSON, except `getFacultyMeetingTimes`.
+than JSON, except `getFacultyMeetingTimes`. The six of them the course pane
+does read are in their own section above.
 
 ---
 

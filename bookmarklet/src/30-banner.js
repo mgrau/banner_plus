@@ -410,30 +410,129 @@ function fetchHistory(s, term) {
   });
 }
 
-var meetingCache = {};
-function fetchMeetings(termCode, crn) {
+/* When a section meets, and who teaches it — one call answers both.
+ *
+ * getFacultyMeetingTimes returns fmt[], and each entry carries a meetingTime
+ * *and* the faculty assigned to it. The console read only the times for a long
+ * while, so the instructor was fetched, parsed and thrown away on every
+ * schedule it drew.
+ *
+ * The two halves are independent: a section can have an instructor and no
+ * times on file (an independent study), or times and no instructor (staff).
+ * Both are normal, so neither is required for the answer to count. */
+var sectionCache = {};
+
+function fetchSectionTimes(termCode, crn) {
   var key = termCode + ":" + crn;
-  if (meetingCache[key]) return Promise.resolve(meetingCache[key]);
+  if (sectionCache[key]) return Promise.resolve(sectionCache[key]);
   return apiGet("sectionDetails/getFacultyMeetingTimes",
     "term=" + encodeURIComponent(termCode) +
     "&courseReferenceNumber=" + encodeURIComponent(crn))
-    // A section with no times on file is a normal answer, not a failure: the
-    // caller gets an empty list either way and the cache remembers it.
+    // A section with nothing on file is a normal answer, not a failure: the
+    // caller gets empty lists either way and the cache remembers it.
     .catch(function () { return null; })
     .then(function (j) {
-      var out = ((j && j.fmt) || []).map(function (f) {
+      var fmt = (j && j.fmt) || [];
+      var meetings = fmt.map(function (f) {
         var m = f.meetingTime || {};
         return { days: DAYS.map(function (d) { return !!m[d]; }), begin: m.beginTime, end: m.endTime,
                  building: m.buildingDescription || m.building, room: m.room };
       }).filter(function (m) { return m.begin && m.days.some(Boolean); });
-      meetingCache[key] = out;
+
+      // One name per person, however many meeting patterns they are listed
+      // against — a Monday lecture and a Wednesday lab are one instructor.
+      var seen = {}, instructors = [];
+      fmt.forEach(function (f) {
+        (f.faculty || []).forEach(function (p) {
+          var name = normName(p.displayName || p.name || "");
+          if (!name || seen[name]) return;
+          seen[name] = 1;
+          instructors.push({ name: name, email: p.emailAddress || "",
+                             primary: p.primaryIndicator === true });
+        });
+      });
+      /* Primary first. Banner promises no order, and a section whose lab
+       * assistant happens to be listed first would otherwise name the wrong
+       * person in a one-line schedule. */
+      instructors.sort(function (a, b) { return (b.primary ? 1 : 0) - (a.primary ? 1 : 0); });
+
+      var out = { meetings: meetings, instructors: instructors };
+      sectionCache[key] = out;
       return out;
     });
 }
 
+/* What Banner holds about a course, for the floating pane.
+ *
+ * These endpoints answer with HTML fragments — Banner assembles its own modal
+ * out of them — so what arrives here is a string and stays one. Turning it
+ * into something readable needs a DOM, which this file does not have.
+ *
+ * Every part is optional and failure is per-part: a course with no
+ * prerequisites and a campus that does not serve getRestrictions at all
+ * produce the same empty answer, and neither should cost the description. */
+var COURSE_PARTS = [
+  { family: "courseDetails/getCourseDescription", label: "Description" },
+  { family: "courseDetails/getPrerequisites", label: "Prerequisites" },
+  { family: "courseDetails/getCorequisites", label: "Corequisites" },
+  { family: "courseDetails/getRestrictions", label: "Restrictions" },
+  { family: "courseDetails/getCourseAttributes", label: "Attributes" },
+  { family: "sectionDetails/getClassDetails", label: "Section details" }
+];
+
+/* Seats, from the call the sidebar already uses for enrolment counts. Keyed by
+ * CRN and term, and it answers for sections you teach — a student's other
+ * courses are somebody else's class, so an empty answer here is expected
+ * rather than broken. */
+function seatsIn(j) {
+  var d = (j && (j.data || j.result || j)) || null;
+  if (Array.isArray(d)) d = d[0];
+  if (!d || d.courseEnrolmentCount == null) return null;
+  function num(v) { return v == null || v === "" ? null : +v; }
+  return { enrolled: num(d.courseEnrolmentCount), max: num(d.maxEnrollmentCount),
+           avail: num(d.seatsAvailCount), waiting: num(d.waitListCount) };
+}
+
+var courseCache = {};
+
+function fetchCourseDetail(termCode, crn) {
+  var key = termCode + ":" + crn;
+  if (courseCache[key]) return Promise.resolve(courseCache[key]);
+  var qs = "term=" + encodeURIComponent(termCode) +
+           "&courseReferenceNumber=" + encodeURIComponent(crn);
+
+  var jobs = COURSE_PARTS.map(function (p) {
+    return apiText(p.family, qs).then(function (t) {
+      var s = String(t == null ? "" : t).trim();
+      return s ? { label: p.label, html: s } : null;
+    }, function (e) {
+      if (DEBUG) console.log("[console] " + p.family + ": " + (e.message || e));
+      return "failed";
+    });
+  });
+  jobs.push(apiGet("courseList/courseInfoAndEnrollmentCounts",
+    "crn=" + encodeURIComponent(crn) + "&term=" + encodeURIComponent(termCode))
+    .then(seatsIn, function () { return null; }));
+
+  return Promise.all(jobs).then(function (r) {
+    var seats = r.pop();
+    var out = {
+      parts: r.filter(function (x) { return x && x !== "failed"; }),
+      // Told apart so the pane can say "nothing on file" for this course
+      // rather than "these endpoints are not here", which are different
+      // problems with different answers.
+      failed: r.filter(function (x) { return x === "failed"; }).length,
+      tried: r.length, seats: seats
+    };
+    courseCache[key] = out;
+    return out;
+  });
+}
+
 /* Everything the scheduling and detail views need for one student: history,
- * then meeting times for that term's sections. Section times are shared, so
- * the cache means a class of 80 costs a handful of extra calls, not 80. */
+ * then times and instructors for that term's sections. Section detail is
+ * shared, so the cache means a class of 80 costs a handful of extra calls,
+ * not 80. */
 function hydrate(students, term, onProgress) {
   return pool(students, CONCURRENCY, function (s) {
     return fetchHistory(s, term).catch(function () { return []; });
@@ -446,11 +545,13 @@ function hydrate(students, term, onProgress) {
         if (!want[k]) { want[k] = 1; jobs.push(c); }
       });
     });
-    return pool(jobs, CONCURRENCY, function (c) { return fetchMeetings(c.termCode, c.crn); })
+    return pool(jobs, CONCURRENCY, function (c) { return fetchSectionTimes(c.termCode, c.crn); })
       .then(function () {
         students.forEach(function (s) {
           (s.history || []).forEach(function (c) {
-            c.meetings = meetingCache[c.termCode + ":" + c.crn] || [];
+            var sec = sectionCache[c.termCode + ":" + c.crn];
+            c.meetings = (sec && sec.meetings) || [];
+            c.instructors = (sec && sec.instructors) || [];
           });
         });
         return students;

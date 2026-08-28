@@ -93,8 +93,11 @@ function transcriptGrid(s) {
       cell.rows.forEach(function (c) {
         var r = el("div", { style: { display: "flex", gap: "5px", fontSize: "11px",
           padding: "1px 0", alignItems: "baseline" } });
-        r.appendChild(el("span", { text: c.course || "", title: c.title || "",
-          style: { fontWeight: "600", whiteSpace: "nowrap" } }));
+        // The code opens the course pane; see 105-course.js. A row with no CRN
+        // — Banner does occasionally hand one back — stays plain text rather
+        // than offering a click that cannot go anywhere.
+        r.appendChild(courseLink(c.course || "", c,
+          { fontWeight: "600", whiteSpace: "nowrap" }));
         // Credits sit between course and grade: dim, because they are context
         // for the grade rather than something you read on their own.
         r.appendChild(el("span", { text: c.credits != null && c.credits !== "" ? c.credits : "",
@@ -191,8 +194,18 @@ function focusStudent(s) {
       now.forEach(function (c) {
         var tr = el("tr");
         var td1 = el("td", { style: { padding: "3px 4px", borderBottom: "1px solid #eef1f5" } });
-        td1.appendChild(el("b", { text: c.course || "" }));
+        var code = el("b");
+        code.appendChild(courseLink(c.course || "", c));
+        td1.appendChild(code);
         td1.appendChild(el("div", { text: c.title || "", style: { color: "#6b7280", fontSize: "10.5px" } }));
+        /* Who is teaching it. Written as "with X" rather than as a bare name
+         * because this table has no headings: under a course title, a name on
+         * its own could be read as part of the title. It comes from the same
+         * call as the meeting times, so it costs nothing extra. */
+        if ((c.instructors || []).length)
+          td1.appendChild(el("div", {
+            text: "with " + c.instructors.map(function (p) { return p.name; }).join(", "),
+            style: { color: "#6b7280", fontSize: "10.5px" } }));
         var tdC = el("td", { text: c.credits != null && c.credits !== "" ? c.credits + " cr" : "",
           style: { padding: "3px 4px", borderBottom: "1px solid #eef1f5", color: "#6b7280",
                    whiteSpace: "nowrap", textAlign: "right", fontVariantNumeric: "tabular-nums",

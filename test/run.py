@@ -212,6 +212,61 @@ CHECKS = [
       return true;
     """),
 
+    ("the schedule names who teaches each course", r"""
+      await openFall101();
+      click($$("img", main())[0].parentNode);
+      await waitFor("transcript", () => containing("div", "Transcript", rightPane()).length);
+      const row = containing("tr", "PHYS 101", rightPane())[0];
+      if (!row) return "no PHYS 101 row in the schedule";
+      // Primary first, whatever order Banner listed the faculty array in.
+      if (!/with Matthew Grau, Adaeze Okafor/.test(text(row)))
+        return "the row reads: " + text(row);
+      return true;
+    """),
+
+    ("clicking a course summons a floating pane of detail", r"""
+      await openFall101();
+      click($$("img", main())[0].parentNode);
+      await waitFor("transcript", () => containing("div", "Transcript", rightPane()).length);
+
+      const links = () => containing("span", "PHYS 101", rightPane())
+        .filter((n) => /course detail/.test(n.title || ""));
+      if (!links().length) return "no clickable course on the record";
+      click(links()[0]);
+      const pane = await waitFor("the course pane", () => document.getElementById("bc-course"));
+      await waitFor("its detail", () => /Newtonian mechanics/.test(text(pane)), 9000);
+
+      const p = text(pane);
+      for (const [what, re] of [["the title", /Introductory Physics/], ["the CRN", /CRN 10001/],
+                                ["the meeting time", /MWF 9:00am/], ["the room", /Oceanography 200/],
+                                ["the instructor", /Matthew Grau/], ["seats", /3 of 30 enrolled/],
+                                ["prerequisites", /MATH 162M/], ["restrictions", /Undergraduate/]])
+        if (!re.test(p)) return "no " + what + ": " + p.slice(0, 300);
+      if (!pane.querySelector('a[href^="mailto:"]')) return "the instructor is not mailable";
+      // Floating over the console, not in place of the record.
+      if (getComputedStyle(pane).position !== "fixed") return "the pane is not floating";
+      if (!/Cumulative GPA/.test(text(rightPane()))) return "it replaced the student pane";
+
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      await sleep(60);
+      if (pane.style.display !== "none") return "Escape did not close it";
+
+      // From the transcript too, for a term that is over and a section with
+      // an instructor but no meeting times.
+      const old = containing("span", "MATH 211", rightPane())
+        .filter((n) => /course detail/.test(n.title || ""))[0];
+      if (!old) return "no clickable course in the transcript";
+      click(old);
+      await waitFor("the older course", () => /Limits, derivatives/.test(text(pane)), 9000);
+      const q = text(pane);
+      if (!/Summer 2025/.test(q)) return "wrong term: " + q.slice(0, 200);
+      if (!/no times on file/.test(q)) return "a section with no meetings should say so";
+      if (!/Carmen Reyes/.test(q)) return "no instructor: " + q.slice(0, 200);
+      // Somebody else's section: the enrolment endpoint has nothing to say.
+      if (/enrolled/.test(q)) return "seat counts for a section you do not teach";
+      return true;
+    """),
+
     ("the two exit links sit above the record, not below it", r"""
       await openFall101();
       click($$("img", main())[0].parentNode);
