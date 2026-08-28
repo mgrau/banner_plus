@@ -374,10 +374,11 @@ PAGE = """<!doctype html>
           padding:.1rem .6rem; color:var(--accent); font-weight:600;
           animation:pulse 2.4s ease-in-out infinite }
   @keyframes pulse { 0%,100%{opacity:.45} 50%{opacity:1} }
-  .stage { position:relative; padding:3.6rem 1rem 2.4rem; text-align:center;
+  .stage { position:relative; display:flex; align-items:center; justify-content:center;
+           padding:3.4rem 1rem 2.3rem;
            background:repeating-linear-gradient(45deg, transparent 0 9px,
              color-mix(in srgb, var(--line) 40%, transparent) 9px 10px) }
-  .bm { display:inline-block; padding:.72rem 1.5rem; border-radius:11px;
+  .bm { flex:0 0 auto; padding:.72rem 1.5rem; border-radius:11px;
         font-weight:700; font-size:1.06rem; letter-spacing:-.01em;
         color:#fff !important; text-decoration:none; cursor:grab; white-space:nowrap;
         background:linear-gradient(180deg,var(--accent2),var(--accent));
@@ -385,21 +386,30 @@ PAGE = """<!doctype html>
         transition:transform .12s ease }
   .bm:hover { transform:translateY(-2px) }
   .bm:active { cursor:grabbing; transform:translateY(0) }
-  /* Sits in the stage's top padding, so it runs from above the button to the
-     slot in the bar without ever crossing either. */
-  .arrow { position:absolute; right:1.5rem; top:.45rem; width:min(210px,52%); height:46px;
-           pointer-events:none; overflow:visible }
-  .arrow path { fill:none; stroke:var(--accent); stroke-width:2.2; stroke-linecap:round;
-                stroke-dasharray:5 5; animation:crawl 1s linear infinite }
-  @keyframes crawl { to { stroke-dashoffset:-20 } }
+  /* The arrow leaves the button's right edge and climbs to the slot in the bar.
+     It is a flex item in the same row as the button rather than something
+     absolutely positioned over the card, so it starts where the button ends
+     whatever the button's width — the old version guessed at that position and
+     missed it on any card narrower than a laptop. The stroke fades in from the
+     button, so the line arrives at the bookmarks bar rather than merely
+     spanning the gap. */
+  .hook { flex:1 1 auto; max-width:240px; min-width:52px; height:4.5rem;
+          align-self:flex-start; margin:-2.5rem 0 0 .45rem;
+          color:var(--accent); pointer-events:none; overflow:visible }
+  .hook path { fill:none; stroke:url(#fade); stroke-width:2.2; stroke-linecap:round;
+               stroke-dasharray:5 6; animation:crawl 1s linear infinite }
+  .hook circle { fill:currentColor; opacity:.3 }
+  @keyframes crawl { to { stroke-dashoffset:-22 } }
   /* The head is its own square SVG so that stretching the curve to fit the
      card cannot stretch the arrowhead with it. */
-  .tip { position:absolute; right:1.2rem; top:.1rem; width:18px; height:18px;
-         pointer-events:none }
-  .tip polygon { fill:var(--accent) }
+  .tip { flex:0 0 18px; width:18px; height:18px; align-self:flex-start;
+         margin:-2.9rem 0 0 -8px; color:var(--accent); pointer-events:none }
+  .tip polygon { fill:currentColor }
   @media (prefers-reduced-motion: reduce) {
-    .arrow path, .slot { animation:none }
+    .hook path, .slot { animation:none }
   }
+  /* No bookmarks bar to drag to on a phone, and a 50px-wide arrow is a smudge. */
+  @media (max-width: 26rem) { .hook, .tip { display:none } }
   .step { text-align:center; color:var(--dim); font-size:.95rem; margin:.9rem 0 0 }
   .step b { color:var(--ink); font-weight:600 }
 
@@ -427,9 +437,15 @@ PAGE = """<!doctype html>
   .fine { text-align:center; color:var(--faint); font-size:.86rem; margin:2.4rem auto 0;
           max-width:34rem; line-height:1.6 }
   footer { margin-top:1.6rem; text-align:center; color:var(--faint); font-size:.84rem }
-  footer a { color:var(--accent); text-decoration:none; font-weight:500 }
-  footer a:hover { text-decoration:underline }
-  footer span { margin:0 .45rem; opacity:.5 }
+  footer .repo { display:inline-flex; align-items:center; gap:.45rem;
+                 padding:.42rem .85rem; border:1px solid var(--line); border-radius:999px;
+                 background:var(--card); color:var(--ink); text-decoration:none;
+                 font-weight:600; font-size:.86rem;
+                 box-shadow:0 8px 20px -14px var(--shadow);
+                 transition:transform .12s ease, border-color .12s ease }
+  footer .repo:hover { border-color:var(--accent); transform:translateY(-1px) }
+  footer .repo svg { width:16px; height:16px; fill:currentColor; flex:0 0 auto }
+  footer p { margin:.9rem 0 0 }
 </style></head>
 <body><main>
 
@@ -445,13 +461,20 @@ PAGE = """<!doctype html>
     <div class="marks"><b>ODU</b><b>Leo Online</b><b>Grades</b>
       <span class="slot">drop here</span></div>
     <div class="stage">
-      <svg class="arrow" viewBox="0 0 210 46" preserveAspectRatio="none" aria-hidden="true">
-        <path d="M8 42 C 84 42, 158 38, 188 16" vector-effect="non-scaling-stroke"/>
-      </svg>
-      <svg class="tip" viewBox="0 0 20 20" aria-hidden="true">
-        <polygon points="18,2 4,7 11,17"/>
-      </svg>
       <a class="bm" href="__HREF__" draggable="true">&#10022; Banner Plus</a>
+      <svg class="hook" viewBox="0 0 240 72" preserveAspectRatio="none" aria-hidden="true">
+        <defs><linearGradient id="fade" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stop-color="currentColor" stop-opacity=".16"/>
+          <stop offset=".6" stop-color="currentColor" stop-opacity=".8"/>
+          <stop offset="1" stop-color="currentColor" stop-opacity="1"/>
+        </linearGradient></defs>
+        <circle cx="4" cy="62" r="3.2"/>
+        <path d="M4 62 C 84 65, 138 61, 178 40 C 206 26, 216 16, 233 3"
+              vector-effect="non-scaling-stroke"/>
+      </svg>
+      <svg class="tip" viewBox="0 0 18 18" aria-hidden="true">
+        <polygon points="17,1 3,6.5 9.5,13"/>
+      </svg>
     </div>
   </div>
   <p class="step"><b>Drag it to your bookmarks bar.</b> Then open Banner and click it.<br>
@@ -465,10 +488,16 @@ in to. Nothing is uploaded &mdash; this page is static and has no server behind
 it. What it shows you is a gradebook; treat it like one.</p>
 
 <footer>
-<a href="__REPO__">Source</a><span>&middot;</span>
-<a href="__REPO__/blob/main/ENDPOINTS.md">Endpoint notes</a><span>&middot;</span>
-<a href="__REPO__#tests">How it is tested</a><br>
-Built against Ellucian Banner 9 at Old Dominion University.
+<a class="repo" href="__REPO__" rel="noopener">
+<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 \
+5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82\
+-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07\
+-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 \
+7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27\
+.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 \
+8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+<span>__REPONAME__</span></a>
+<p>Built against Ellucian Banner 9 at Old Dominion University.</p>
 </footer>
 </main></body></html>
 """
@@ -477,6 +506,13 @@ Built against Ellucian Banner 9 at Old Dominion University.
 def repo_url(base: str) -> str:
     m = re.match(r"https?://([^.]+)\.github\.io/([^/]+)", base.rstrip("/"))
     return f"https://github.com/{m.group(1)}/{m.group(2)}" if m else base
+
+
+def repo_name(url: str) -> str:
+    """owner/repo, for the badge in the footer — or the bare host if it is not
+    a GitHub URL, since a badge has to say where it goes."""
+    m = re.match(r"https?://github\.com/(.+?)/?$", url)
+    return m.group(1) if m else re.sub(r"^https?://", "", url).rstrip("/")
 
 
 def main() -> int:
@@ -500,9 +536,11 @@ def main() -> int:
     (DOCS / BOOKMARKLET).write_text(js, encoding="utf-8")
 
     href = loader(base, BOOKMARKLET)
+    repo = repo_url(base)
     page = (PAGE.replace("__HREF__", href)
                 .replace("__MOCKUP__", mockup())
-                .replace("__REPO__", repo_url(base)))
+                .replace("__REPONAME__", repo_name(repo))
+                .replace("__REPO__", repo))
     (DOCS / "index.html").write_text(page, encoding="utf-8")
 
     # Verify against the finished page, not the string just built: the failure

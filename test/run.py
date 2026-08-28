@@ -351,7 +351,13 @@ CHECKS = [
       if (!/Show every term/.test(d)) return "no term setting";
       if (!/Hide empty sections/.test(d)) return "no empty-section setting";
       if (!/Reset table column widths/.test(d)) return "no width reset";
-      if (!drawer().querySelector('a[href*="github.com"]')) return "no source link";
+      /* The link home is worked out from where console.js was loaded, so under
+         test it points at the stub's own root — which is the whole point: a
+         fork's copy points at the fork's page, not at mine. */
+      const home = drawer().querySelector('a[href^="http://127.0.0.1"]');
+      if (!home) return "no link to the product page: " +
+        $$("a", drawer()).map((a) => a.href).join("|");
+      if (!/What it does/.test(text(home))) return "the link says: " + text(home);
       if (/CSV/.test(d)) return "the removed CSV export is back";
 
       // Faces per row: defaults to 5, moves, and remembers.
