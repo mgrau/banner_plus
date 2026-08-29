@@ -81,15 +81,14 @@
 
      Two wants that fight: the button belongs in the middle of the window, and
      the arrow belongs on its right. Centring the pair would push the button
-     left by half an arrow. So an empty span on the other side mirrors the
-     arrow's flex share — same growth, same basis — and the button lands in the
-     centre with the arrow owning exactly the space to its right. The head's
-     left margin is its own width for the same reason: it sits over the end of
-     the curve rather than after it, so it adds nothing to that side.
+     left by half an arrow. So an empty span on the other side mirrors whatever
+     the arrow's side adds — same growth, and a basis equal to the half-head
+     that sticks out past the curve — and the button lands in the centre with
+     the arrow owning the space to its right.
 
      The stroke fades in along its length, so the line reads as leaving the
      button rather than merely spanning the gap. */
-  .lead { flex:1 1 0; min-width:0 }
+  .lead { flex:1 1 .5625rem; min-width:0 }
   .hook { flex:1 1 0; min-width:0; height:4.75rem;
           align-self:flex-start; margin-top:-2.6rem;
           color:var(--accent); pointer-events:none; overflow:visible }
@@ -101,9 +100,18 @@
      card cannot stretch the arrowhead with it. The curve ends going straight
      up, which is the one direction a fixed head can be sure of: squeezing the
      card compresses the curve horizontally and steepens every other angle in
-     it, but vertical stays vertical. */
-  .tip { flex:0 0 18px; width:18px; height:18px; align-self:flex-start;
-         margin:-2.29rem 0 0 -18px; color:var(--accent); pointer-events:none }
+     it, but vertical stays vertical.
+
+     Sitting the head exactly on the end of the line takes two things. The path
+     ends at the right edge of its viewBox, because that is the only x whose
+     position does not depend on how far the box was stretched — an end two
+     thirds along lands two pixels off on a wide card and further off on a
+     wider one. And every length here is in rem, including the head's own box,
+     so the whole drawing scales as one if the reader's default font is not
+     16px: the head's apex is 2/18ths down its box, the line ends 6/76ths down
+     the hook, and -2.35rem is the difference. */
+  .tip { flex:0 0 1.125rem; width:1.125rem; height:1.125rem; align-self:flex-start;
+         margin:-2.35rem 0 0 -.5625rem; color:var(--accent); pointer-events:none }
   .tip polygon { fill:currentColor }
   @media (prefers-reduced-motion: reduce) {
     .hook path, .slot { animation:none }
@@ -170,11 +178,11 @@
           <stop offset="1" stop-color="currentColor" stop-opacity="1"/>
         </linearGradient></defs>
         <circle cx="5" cy="64" r="3.2"/>
-        <path d="M5 64 C 48 68, 98 67, 126 49 C 143 38, 149 22, 150 5"
+        <path d="M5 64 C 48 68, 98 67, 128 50 C 148 38, 159 22, 160 6"
               vector-effect="non-scaling-stroke"/>
       </svg>
       <svg class="tip" viewBox="0 0 18 18" aria-hidden="true">
-        <polygon points="9,1 2.8,14.5 15.2,14.5"/>
+        <polygon points="9,2 4.4,12.5 13.6,12.5"/>
       </svg>
     </div>
   </div>
