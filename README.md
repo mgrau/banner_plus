@@ -30,12 +30,6 @@ term's schedule with rooms, times and instructors, and the full registration
 history laid out as a transcript — seasons across, academic years down, newest
 first.
 
-**Course detail on click.** Every course code on that record opens a small
-floating window: description, prerequisites, restrictions, attributes, who
-teaches it, and how many seats are left. It floats rather than replacing the
-right-hand pane, because reading a description is something you do *while*
-looking at a student's record.
-
 **Shared free time.** Select any set of students and get a heatmap of when they
 are collectively not in class, with the best windows listed. Pointed at a class
 roster it answers the question office hours are really asking. Hovering a slot
@@ -101,7 +95,7 @@ function — so an editor can parse one without the rest, but only the bundle ru
 | `80-sidebar` | sections and groups, and the group editor |
 | `90-roster` | the middle pane, as photos or as a table |
 | `100-student` | the student pane and the transcript grid |
-| `105-course` | the floating course pane |
+| `105-course` | the floating course pane — switched off; the file says why |
 | `110-scheduling` | shared free time |
 | `120-load` | opening a section or a group |
 | `130-boot` | terms, and starting up |

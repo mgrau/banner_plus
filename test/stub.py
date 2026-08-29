@@ -247,6 +247,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if u.path == "/console.js":
             self.send_blob(self.server.console_js.encode(), "application/javascript")
             return
+        # Which endpoint families have been asked for, so a check can assert
+        # that something was *not* requested. A feature switched off has to be
+        # off at the wire, not merely invisible.
+        if u.path == "/hits":
+            return self.send_json(sorted(self.server.hits))
         # The check under test, loaded after the console so it runs second.
         if u.path == "/check.js":
             self.send_blob(self.server.check_js.encode(), "application/javascript")
@@ -265,6 +270,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                                   "text/html; charset=utf-8")
 
         fam, ok = self.route(u.path)
+        if fam is not None:
+            # Recorded whether or not the prefix was right: a request that went
+            # out under the wrong prefix still went out.
+            self.server.hits.add(fam)
         if fam is None or not ok:
             return self.not_found()
 
@@ -404,6 +413,7 @@ def serve(port: int, console_js: str, verbose: bool = False):
     srv.result = None          # a check POSTs its verdict to /result
     srv.done = threading.Event()
     srv.warm = False           # set once the class-list page has been served
+    srv.hits = set()           # endpoint families asked for; see /hits
     srv.verbose = verbose
     return srv
 

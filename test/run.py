@@ -224,46 +224,29 @@ CHECKS = [
       return true;
     """),
 
-    ("clicking a course summons a floating pane of detail", r"""
+    # The course pane is switched off — see the head of src/105-course.js. Off
+    # has to mean nothing reaches Banner rather than merely that nothing
+    # appears, because it was the requests that were the problem.
+    ("the course pane is off, and asks Banner for nothing", r"""
       await openFall101();
       click($$("img", main())[0].parentNode);
       await waitFor("transcript", () => containing("div", "Transcript", rightPane()).length);
 
-      const links = () => containing("span", "PHYS 101", rightPane())
-        .filter((n) => /course detail/.test(n.title || ""));
-      if (!links().length) return "no clickable course on the record";
-      click(links()[0]);
-      const pane = await waitFor("the course pane", () => document.getElementById("bc-course"));
-      await waitFor("its detail", () => /Newtonian mechanics/.test(text(pane)), 9000);
+      const offered = $$("span", rightPane()).filter((n) => /course detail/.test(n.title || ""));
+      if (offered.length) return offered.length + " course codes still offer a click";
 
-      const p = text(pane);
-      for (const [what, re] of [["the title", /Introductory Physics/], ["the CRN", /CRN 10001/],
-                                ["the meeting time", /MWF 9:00am/], ["the room", /Oceanography 200/],
-                                ["the instructor", /Matthew Grau/], ["seats", /3 of 30 enrolled/],
-                                ["prerequisites", /MATH 162M/], ["restrictions", /Undergraduate/]])
-        if (!re.test(p)) return "no " + what + ": " + p.slice(0, 300);
-      if (!pane.querySelector('a[href^="mailto:"]')) return "the instructor is not mailable";
-      // Floating over the console, not in place of the record.
-      if (getComputedStyle(pane).position !== "fixed") return "the pane is not floating";
-      if (!/Cumulative GPA/.test(text(rightPane()))) return "it replaced the student pane";
+      // Click one anyway. Nothing should open, and nothing should be fetched.
+      const code = containing("span", "PHYS 101", rightPane())[0];
+      if (!code) return "no course code on the record at all";
+      click(code);
+      await sleep(300);
+      if (document.getElementById("bc-course")) return "the course pane opened";
 
-      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-      await sleep(60);
-      if (pane.style.display !== "none") return "Escape did not close it";
-
-      // From the transcript too, for a term that is over and a section with
-      // an instructor but no meeting times.
-      const old = containing("span", "MATH 211", rightPane())
-        .filter((n) => /course detail/.test(n.title || ""))[0];
-      if (!old) return "no clickable course in the transcript";
-      click(old);
-      await waitFor("the older course", () => /Limits, derivatives/.test(text(pane)), 9000);
-      const q = text(pane);
-      if (!/Summer 2025/.test(q)) return "wrong term: " + q.slice(0, 200);
-      if (!/no times on file/.test(q)) return "a section with no meetings should say so";
-      if (!/Carmen Reyes/.test(q)) return "no instructor: " + q.slice(0, 200);
-      // Somebody else's section: the enrolment endpoint has nothing to say.
-      if (/enrolled/.test(q)) return "seat counts for a section you do not teach";
+      const hits = await (await fetch("/hits")).json();
+      const asked = hits.filter((h) => /^courseDetails\//.test(h) ||
+        h === "sectionDetails/getClassDetails" ||
+        h === "courseList/courseInfoAndEnrollmentCounts");
+      if (asked.length) return "it asked Banner for " + asked.join(", ");
       return true;
     """),
 
@@ -598,6 +581,7 @@ def run_one(srv, url: str, timeout: int = 45) -> tuple[bool, str]:
     srv.done.clear()
     srv.result = None
     srv.warm = False           # every check gets a cold Banner session
+    srv.hits.clear()
     profile = Path(tempfile.mkdtemp(prefix="bp-chrome-"))
     proc = subprocess.Popen(
         [CHROME, "--headless=new", "--disable-gpu", "--no-sandbox",

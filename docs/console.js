@@ -11,7 +11,6 @@
  *   middle    the roster, as a grid of faces or as a table
  *   right     the focused student — schedule and transcript — or, for a
  *             selection, a heatmap of when they are collectively free
- *   floating  one course, summoned by clicking its name on a record
  *
  * WHY THIS EXISTS
  *
@@ -33,7 +32,7 @@
  *   80-sidebar      sections and groups, and the group editor
  *   90-roster       the middle pane, as photos or as a table
  *   100-student     the student pane and the transcript grid
- *   105-course      the floating course pane
+ *   105-course      the floating course pane, switched off; the file says why
  *   110-scheduling  shared free time
  *   120-load        opening a section or a group
  *   130-boot        terms, and starting up
@@ -2938,7 +2937,31 @@
    * their record, not instead of it — a pane that replaced the transcript would
    * lose the row you clicked. It can be dragged out of the way and stays where
    * you put it.
+   *
+   * TURNED OFF.
+   *
+   * Clicking a course fanned six requests at courseDetails/* and one at
+   * courseList/courseInfoAndEnrollmentCounts, and something in that upset Banner
+   * itself rather than just this console. Until it is known which call does it
+   * and why, no course code is clickable and nothing here can fire: COURSE_PANE
+   * gates the only door in, which is courseLink().
+   *
+   * The leading suspect is the enrolment call. It is keyed by CRN and answers for
+   * sections you teach, so the pane asks it about a student's other courses —
+   * somebody else's class — and Banner has every reason to treat that as an
+   * access violation rather than as an empty answer. The fan-out is the next
+   * suspect: seven requests at once, from a page that is not the screen those
+   * endpoints belong to.
+   *
+   * The way back in is one call at a time against a real session, in this order:
+   * getCourseDescription for a section you teach, then for one you do not, then
+   * the enrolment call for one you do not. Whichever breaks it is the answer.
+   *
+   * Everything below is left intact, because it works against the stub and the
+   * fix is likely to be *which* calls are made rather than what is done with the
+   * answers.
    */
+  var COURSE_PANE = false;
 
   /* Banner's course detail arrives as HTML fragments meant for its own modal.
    * They are turned into lines of text rather than injected: an <img onerror>
@@ -2981,7 +3004,9 @@
   function courseLink(text, c, style) {
     var n = el("span", { text: text, style: style || {} });
     if (c && c.title) n.title = c.title;
-    if (!c || !c.crn) return n;
+    // Switched off, or nothing to ask about: plain text, and no promise of a
+    // click that either cannot answer or must not be made.
+    if (!COURSE_PANE || !c || !c.crn) return n;
     var was = n.style.color;
     n.style.cursor = "pointer";
     n.style.borderBottom = "1px dotted #b6bec9";

@@ -204,6 +204,14 @@ The two halves are independent: a section can have faculty and no
 
 ### Course and section detail
 
+**Nothing calls these at present.** The pane that used them is switched off:
+clicking a course fired six of them at once plus the enrolment call, and
+something in that upset Banner itself rather than only this console. The
+findings are kept because they are correct as far as they go and the fix is
+likely to be which calls are made rather than what they return — but treat this
+section as a map to somewhere with a hole in the road. `bookmarklet/src/105-course.js`
+has the suspects and the order to test them in.
+
 | Endpoint | Keyed by |
 |---|---|
 | `courseDetails/getCourseDescription` | term + crn |
@@ -226,7 +234,10 @@ wrong prefix, which is the photo trap in different clothes.
 
 Seats come from `courseList/courseInfoAndEnrollmentCounts?crn=&term=` in the
 table above, which is JSON. It answers for sections you teach — a student's
-other courses are someone else's class, so nothing there is expected.
+other courses are someone else's class, so nothing there is expected. That
+asymmetry is the leading suspect for the breakage above: asking a faculty
+endpoint about a section you do not teach is the kind of thing Banner may treat
+as an access violation rather than as an empty answer.
 
 ### Student search
 

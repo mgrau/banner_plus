@@ -11,7 +11,6 @@
  *   middle    the roster, as a grid of faces or as a table
  *   right     the focused student — schedule and transcript — or, for a
  *             selection, a heatmap of when they are collectively free
- *   floating  one course, summoned by clicking its name on a record
  *
  * WHY THIS EXISTS
  *
@@ -33,7 +32,7 @@
  *   80-sidebar      sections and groups, and the group editor
  *   90-roster       the middle pane, as photos or as a table
  *   100-student     the student pane and the transcript grid
- *   105-course      the floating course pane
+ *   105-course      the floating course pane, switched off; the file says why
  *   110-scheduling  shared free time
  *   120-load        opening a section or a group
  *   130-boot        terms, and starting up
