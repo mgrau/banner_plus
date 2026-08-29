@@ -73,24 +73,37 @@
         transition:transform .12s ease }
   .bm:hover { transform:translateY(-2px) }
   .bm:active { cursor:grabbing; transform:translateY(0) }
-  /* The arrow leaves the button's right edge and climbs to the slot in the bar.
-     It is a flex item in the same row as the button rather than something
+  /* The arrow leaves the button's right edge and swoops up to the slot in the
+     bar. It is a flex item in the same row as the button rather than something
      absolutely positioned over the card, so it starts where the button ends
      whatever the button's width — the old version guessed at that position and
-     missed it on any card narrower than a laptop. The stroke fades in from the
-     button, so the line arrives at the bookmarks bar rather than merely
-     spanning the gap. */
-  .hook { flex:1 1 auto; max-width:240px; min-width:52px; height:4.5rem;
-          align-self:flex-start; margin:-2.5rem 0 0 .45rem;
+     missed it on any card narrower than a laptop.
+
+     Two wants that fight: the button belongs in the middle of the window, and
+     the arrow belongs on its right. Centring the pair would push the button
+     left by half an arrow. So an empty span on the other side mirrors the
+     arrow's flex share — same growth, same basis — and the button lands in the
+     centre with the arrow owning exactly the space to its right. The head's
+     left margin is its own width for the same reason: it sits over the end of
+     the curve rather than after it, so it adds nothing to that side.
+
+     The stroke fades in along its length, so the line reads as leaving the
+     button rather than merely spanning the gap. */
+  .lead { flex:1 1 0; min-width:0 }
+  .hook { flex:1 1 0; min-width:0; height:4.75rem;
+          align-self:flex-start; margin-top:-2.6rem;
           color:var(--accent); pointer-events:none; overflow:visible }
   .hook path { fill:none; stroke:url(#fade); stroke-width:2.2; stroke-linecap:round;
                stroke-dasharray:5 6; animation:crawl 1s linear infinite }
   .hook circle { fill:currentColor; opacity:.3 }
   @keyframes crawl { to { stroke-dashoffset:-22 } }
   /* The head is its own square SVG so that stretching the curve to fit the
-     card cannot stretch the arrowhead with it. */
+     card cannot stretch the arrowhead with it. The curve ends going straight
+     up, which is the one direction a fixed head can be sure of: squeezing the
+     card compresses the curve horizontally and steepens every other angle in
+     it, but vertical stays vertical. */
   .tip { flex:0 0 18px; width:18px; height:18px; align-self:flex-start;
-         margin:-2.9rem 0 0 -8px; color:var(--accent); pointer-events:none }
+         margin:-2.29rem 0 0 -18px; color:var(--accent); pointer-events:none }
   .tip polygon { fill:currentColor }
   @media (prefers-reduced-motion: reduce) {
     .hook path, .slot { animation:none }
@@ -148,19 +161,20 @@
     <div class="marks"><b>ODU</b><b>Leo Online</b><b>Grades</b>
       <span class="slot">drop here</span></div>
     <div class="stage">
+      <span class="lead"></span>
       <a class="bm" href="javascript:(function()%7Bif(!/facultyssb%7C%5C/FacultySelfService/i.test(location.host+location.pathname))%7Bif(confirm(%27Banner%20Plus%20runs%20inside%20Banner%20Faculty%20Self-Service.%5Cn%5CnOpen%20it%20now?%20Then%20click%20this%20bookmark%20again.%27))location.href=%27https://facultyssb-prod.ec.odu.edu/FacultySelfService/ssb/classListApp/classListPage%27;return;%7Dvar%20d=document,s=d.createElement(%27script%27);s.src=%27https://mgrau.github.io/banner_plus/console.js?v=%27+Date.now();s.onerror=function()%7Balert(%27Banner%20Plus%20could%20not%20load%20console.js%20from%20https://mgrau.github.io/banner_plus.%5Cn%5CnEither%20the%20site%20is%20unreachable,%20or%20this%20page%20blocked%20the%20script%20%5Cu2014%20check%20the%20browser%20console%20for%20a%20Content-Security-Policy%20error.%27);%7D;d.body.appendChild(s);%7D)();" draggable="true">&#10022; Banner Plus</a>
-      <svg class="hook" viewBox="0 0 240 72" preserveAspectRatio="none" aria-hidden="true">
+      <svg class="hook" viewBox="0 0 160 76" preserveAspectRatio="none" aria-hidden="true">
         <defs><linearGradient id="fade" x1="0" y1="1" x2="1" y2="0">
           <stop offset="0" stop-color="currentColor" stop-opacity=".16"/>
           <stop offset=".6" stop-color="currentColor" stop-opacity=".8"/>
           <stop offset="1" stop-color="currentColor" stop-opacity="1"/>
         </linearGradient></defs>
-        <circle cx="4" cy="62" r="3.2"/>
-        <path d="M4 62 C 84 65, 138 61, 178 40 C 206 26, 216 16, 233 3"
+        <circle cx="5" cy="64" r="3.2"/>
+        <path d="M5 64 C 48 68, 98 67, 126 49 C 143 38, 149 22, 150 5"
               vector-effect="non-scaling-stroke"/>
       </svg>
       <svg class="tip" viewBox="0 0 18 18" aria-hidden="true">
-        <polygon points="17,1 3,6.5 9.5,13"/>
+        <polygon points="9,1 2.8,14.5 15.2,14.5"/>
       </svg>
     </div>
   </div>
