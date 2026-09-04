@@ -426,8 +426,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
         return self.not_found()
 
 
+class Server(http.server.ThreadingHTTPServer):
+    def handle_error(self, request, client_address):
+        """Every check ends by killing its browser, often mid-response, and the
+        traceback that produces looks exactly like a test failing. Only the
+        unexpected is worth printing."""
+        e = sys.exc_info()[1]
+        if isinstance(e, (BrokenPipeError, ConnectionResetError)):
+            return
+        super().handle_error(request, client_address)
+
+
 def serve(port: int, console_js: str, verbose: bool = False):
-    srv = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    srv = Server(("127.0.0.1", port), Handler)
     srv.console_js = console_js
     srv.check_js = ""          # run.py swaps this in per check
     srv.result = None          # a check POSTs its verdict to /result

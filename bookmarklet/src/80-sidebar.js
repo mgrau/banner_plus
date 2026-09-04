@@ -15,6 +15,11 @@
  * The first three all end in the same editor as the last, prefilled. Building
  * a group is not the same as being sure of it, and the list is where you check.
  *
+ * One button, not three. Each way of starting a group had its own, which made
+ * a pane of near-identical dashed buttons and left the reader to work out
+ * which one they wanted. There is one now, and it says what it would build a
+ * group out of — see groupBasis().
+ *
  * The editor is a membership list, because that is what a group is. It
  * replaced a textarea of bare UINs, which was fine for creating a group in one
  * go and useless for checking one — a column of eight-digit numbers cannot be
@@ -27,16 +32,51 @@ function pickedSections() {
   return S.sections.filter(function (s) { return S.selSections[sectionKey(s)]; });
 }
 
-/* A button that offers to build a group out of something you have already
- * gathered. Dashed like "New group", because all of them make the same kind of
- * thing; the label says what it would be made of. */
-function groupBtn(label, title, fn) {
-  var b = el("button", { text: label, title: title, style: {
-    width: "100%", marginTop: "6px", padding: "6px", borderRadius: "6px",
-    border: "1px dashed #c7d0dd", background: "transparent", color: "#41556f",
-    cursor: "pointer", font: "inherit", fontSize: "12px" } });
-  b.onclick = fn;
-  return b;
+/* What "New group" would build a group out of, right now.
+ *
+ * Ticked classes win over a ticked roster, because the two states are not
+ * equally deliberate: the roster selection is also what Print and Scheduling
+ * act on, so it is often left over from doing one of those, while ticking a
+ * class box has exactly one purpose. Neither is guessed at silently — the
+ * button says which it is about to use, so the answer is on screen before the
+ * click rather than after it.
+ */
+function groupBasis() {
+  var classes = pickedSections();
+  if (classes.length) {
+    return {
+      label: "+ New group from " + classes.length + " class" + (classes.length === 1 ? "" : "es"),
+      title: "Loads each roster and combines them, without duplicates: " +
+             classes.map(function (s) { return s.label; }).join(", "),
+      go: function () { newGroupFromSections(classes); }
+    };
+  }
+  var n = S.students.length ? nSelected() : 0;
+  if (n) {
+    return {
+      label: "+ New group from " + n + " selected",
+      title: "Opens the group editor with them already in it.",
+      go: function () { newGroupFromStudents(selectedStudents()); }
+    };
+  }
+  return {
+    label: "+ New group",
+    title: "Search by name or paste UINs. Or tick students in a roster, tick " +
+           "classes to combine, or drag students onto this button.",
+    go: newGroup
+  };
+}
+
+var groupBtnRef = null;
+
+/* Relabelled in place rather than re-rendered: this runs on every row of a
+ * drag across the table, and rebuilding the sidebar mid-drag loses the drag. */
+function syncGroupBtn() {
+  if (!groupBtnRef) return;
+  var b = groupBasis();
+  groupBtnRef.textContent = b.label;
+  groupBtnRef.title = b.title;
+  groupBtnRef.onclick = b.go;
 }
 
 /* Accepting a drop of students. The same three handlers on a group row and on
@@ -131,15 +171,6 @@ function renderSide() {
     side.appendChild(b);
   });
 
-  var picked = pickedSections();
-  if (picked.length) {
-    side.appendChild(groupBtn(
-      "+ New group from " + picked.length + " class" + (picked.length === 1 ? "" : "es"),
-      "Loads each roster and combines them, without duplicates: " +
-      picked.map(function (s) { return s.label; }).join(", "),
-      function () { newGroupFromSections(picked); }));
-  }
-
   side.appendChild(el("div", { text: "Groups",
     style: { fontSize: "11px", color: "#6b7280", fontWeight: "600", margin: "14px 0 6px" } }));
   S.groups.forEach(function (grp, i) {
@@ -190,27 +221,19 @@ function renderSide() {
     side.appendChild(wrap);
   });
 
-  /* Straight from whoever is ticked in the roster. This is the sidebar's half
-   * of a gesture that starts in the middle pane, which is why it lives here
-   * and not next to "Select all": the group being made is a thing in this
-   * list, and it should appear where it will end up. */
-  if (S.students.length) {
-    var n = nSelected();
-    selBtnRef = groupBtn(
-      n ? "+ New group from " + n + " selected"
-        : "+ New group from all " + S.students.length + " in " + S.source.label,
-      "Opens the group editor with them already in it.",
-      function () { newGroupFromStudents(selectedStudents()); });
-    side.appendChild(selBtnRef);
-  } else {
-    selBtnRef = null;
-  }
-
-  var add = groupBtn("+ New group from UINs",
-    "Search by name or paste UINs — or drag students here from a roster.", newGroup);
+  /* The one way in. What it makes depends on what you have gathered, and the
+   * label says so; the sidebar is where it lives because the group being made
+   * is a thing in this list and should appear where it will end up. */
+  var add = el("button", { style: {
+    width: "100%", marginTop: "6px", padding: "6px", borderRadius: "6px",
+    border: "1px dashed #c7d0dd", background: "transparent", color: "#41556f",
+    cursor: "pointer", font: "inherit", fontSize: "12px" } });
+  groupBtnRef = add;
+  syncGroupBtn();
   /* Also a drop target, because until a group exists there is nowhere to drag
    * to, and "make a group first" is a poor answer to somebody holding a
-   * selection. Dropping here opens the editor with them in it. */
+   * selection. A drop says what it is about more plainly than any state the
+   * button was reading, so it wins over both. */
   dropTarget(add, function (over) {
     add.style.background = over ? "#d7e8ff" : "transparent";
     add.style.borderColor = over ? "#2a78d6" : "#c7d0dd";

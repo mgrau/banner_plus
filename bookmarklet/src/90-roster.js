@@ -191,7 +191,7 @@ try { S.table = localStorage.getItem(VIEW_KEY) === "table"; } catch (e) {}
 
 var tableSort = { col: "name", dir: 1 };
 var suppressUntil = 0;
-var selInfoRef = null, selBtnRef = null;
+var selInfoRef = null;
 
 function nSelected() {
   var n = 0;
@@ -199,16 +199,12 @@ function nSelected() {
   return n;
 }
 
-/* Two places show the selection: the count above the roster and the button in
- * the sidebar that would make a group of it. Both are relabelled in place
- * rather than re-rendered, because this runs on every row of a drag across a
- * table and rebuilding the sidebar mid-drag loses the drag. */
+/* Two things read the selection: the count above the roster, and the sidebar's
+ * New group button, which offers to make a group of it. */
 function updateSelCount() {
   var n = nSelected();
   if (selInfoRef) selInfoRef.textContent = n ? n + " selected" : "";
-  if (selBtnRef && S.source) selBtnRef.textContent = n
-    ? "+ New group from " + n + " selected"
-    : "+ New group from all " + S.students.length + " in " + S.source.label;
+  syncGroupBtn();
 }
 
 /* Column widths persist, because a width you dragged is a preference, not a

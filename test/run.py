@@ -101,7 +101,7 @@ async function openFall101() {
 // whichever check ran before it.
 async function makeGroup(name) {
   await booted();
-  click(byText("button", "+ New group from UINs", side()));
+  click(byText("button", "+ New group", side()));
   await waitFor("the group editor", () => byText("div", "New group"));
   const card = byText("div", "New group").parentNode;
   $$("input", card)[0].value = name;
@@ -389,21 +389,32 @@ CHECKS = [
       return true;
     """),
 
-    ("a group from the students ticked in the roster", r"""
+    ("one New group button, and it says what it would build", r"""
       await openFall101();
-      // Nothing ticked: the button offers the whole class.
-      const btn = () => containing("button", "New group from", side())
-        .filter((b) => !/UINs/.test(text(b)))[0];
-      if (!btn()) return "no button to make a group of the roster";
-      if (!/all 3 in PHYS 101/.test(text(btn()))) return "it says: " + text(btn());
+      const btns = () => containing("button", "New group", side());
+      if (btns().length !== 1) return btns().length + " new-group buttons: " +
+        btns().map(text).join(" | ");
+      const btn = () => btns()[0];
+      // Nothing gathered: the plain one.
+      if (text(btn()) !== "+ New group") return "with nothing ticked it says: " + text(btn());
 
-      // Tick two of the three, from the grid.
+      // A roster selection.
       const cards = $$("img", main()).map((i) => i.parentNode);
       const tickOf = (c) => Array.from(c.children).filter((n) => n.title === "Select")[0];
       click(tickOf(cards[0]));
       click(tickOf(cards[1]));
       await sleep(60);
       if (!/2 selected/.test(text(btn()))) return "after ticking two it says: " + text(btn());
+
+      // A ticked class wins over a roster selection, and the label says which.
+      const box = () => sectionRows()[1].querySelector('input[type="checkbox"]');
+      click(box());
+      await sleep(60);
+      if (text(btn()) !== "+ New group from 1 class")
+        return "with a class ticked as well it says: " + text(btn());
+      click(box());
+      await sleep(60);
+      if (!/2 selected/.test(text(btn()))) return "after unticking the class: " + text(btn());
 
       click(btn());
       await waitFor("the editor", () => byText("div", "New group from 2 students"));
@@ -457,7 +468,7 @@ CHECKS = [
 
     ("dropping students on New group opens it with them in it", r"""
       await openFall101();
-      const target = byText("button", "+ New group from UINs", side());
+      const target = byText("button", "+ New group", side());
       if (!target) return "no new-group button to drop on";
       // The whole card is the handle now, not just the photograph.
       const cardEl = $$("img", main())[0].parentNode;
