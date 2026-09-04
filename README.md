@@ -36,8 +36,12 @@ roster it answers the question office hours are really asking. Hovering a slot
 names who is free and who is not.
 
 **Groups.** Artificial classes built from students who share no section — a
-research group, a set of advisees. Search by name, paste UINs, or drag students
-in from a class. They behave like a roster everywhere else.
+research group, a set of advisees, everyone who took any of three courses. Tick
+students in a roster and make a group of them, tick two classes and combine
+their rosters, drag students onto a group in the sidebar, or search by name and
+paste UINs. Each way opens the same membership list before saving, because
+building a group is not the same as being sure of it. They behave like a roster
+everywhere else.
 
 **Printable sheets**: a photo roster with names, UINs and colour-coded majors —
 five faces across by default, on a slider in settings, because how big a face

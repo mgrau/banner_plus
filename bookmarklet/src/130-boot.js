@@ -84,6 +84,8 @@ termSel.onchange = function () {
   S.term = termSel.value;
   S.termLabel = termSel.options[termSel.selectedIndex].text;
   S.source = null; S.students = []; S.sel = {}; S.focus = null;
+  // The class list is about to be replaced, so ticks on it mean nothing.
+  S.selSections = {};
   setRightOpen(false);
   renderMain();
   loadSections();

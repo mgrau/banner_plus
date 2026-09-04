@@ -12,9 +12,14 @@
 
 /* Dragging students to a group.
  *
- * The photo is the handle, not the whole row: rows already own a drag gesture
- * for range-selection, and one element cannot mean two things. A photo is also
- * the most object-like part of a row — the thing that looks draggable.
+ * In the grid the whole card is the handle. It was the photograph alone, which
+ * is defensible — a photo is the most object-like part of a card — and wrong
+ * in practice: the target was a third of what looks like one object, and a
+ * drag that starts on the name simply does nothing, which reads as the feature
+ * not existing.
+ *
+ * In the table it is still the thumbnail, because there a row already owns a
+ * drag gesture for range-selection and one element cannot mean two things.
  *
  * Dragging a selected student carries the whole selection; dragging an
  * unselected one carries just that student, the way a file manager behaves. */
@@ -27,7 +32,6 @@ function dragPayload(s) {
 
 function makeDragHandle(node, s) {
   node.draggable = true;
-  node.title = "Drag to a group in the sidebar";
   // Stops the row's own range-select gesture from starting on the handle.
   node.addEventListener("mousedown", function (ev) { ev.stopPropagation(); }, true);
   node.addEventListener("dragstart", function (ev) {
@@ -70,7 +74,7 @@ function renderMain() {
   head.appendChild(el("div", { text: S.students.length + " students",
     style: { color: "#6b7280", fontSize: "12.5px" } }));
 
-  var nSel = Object.keys(S.sel).filter(function (k) { return S.sel[k]; }).length;
+  var nSel = nSelected();
   var selInfo = el("div", { text: nSel ? nSel + " selected" : "",
     style: { color: "#2a78d6", fontSize: "12.5px", fontWeight: "600" } });
   selInfoRef = selInfo;
@@ -112,6 +116,9 @@ function renderMain() {
   }
   head.appendChild(acts);
   main.appendChild(head);
+  // The sidebar's "new group from…" button counts the same selection, and
+  // Select all / Clear redraw this pane without redrawing that one.
+  updateSelCount();
 
   if (S.table) { main.appendChild(studentTable()); return; }
 
@@ -141,7 +148,10 @@ function renderMain() {
       width: "100%", aspectRatio: "1/1", objectFit: "cover", borderRadius: "5px", display: "block",
       background: "#eee" } });
     s._img = img;
-    makeDragHandle(img, s);
+    makeDragHandle(card, s);
+    // On the photograph rather than the card: a tooltip on every card is a
+    // tooltip in the way of reading the roster.
+    img.title = "Drag to a group in the sidebar";
     card.appendChild(img);
     card.appendChild(el("div", { text: s.name, style: {
       fontSize: "11.5px", fontWeight: "600", marginTop: "4px", lineHeight: "1.2" } }));
@@ -181,13 +191,24 @@ try { S.table = localStorage.getItem(VIEW_KEY) === "table"; } catch (e) {}
 
 var tableSort = { col: "name", dir: 1 };
 var suppressUntil = 0;
-var selInfoRef = null;
+var selInfoRef = null, selBtnRef = null;
 
-function updateSelCount() {
-  if (!selInfoRef) return;
+function nSelected() {
   var n = 0;
   S.students.forEach(function (s) { if (S.sel[s.key]) n++; });
-  selInfoRef.textContent = n ? n + " selected" : "";
+  return n;
+}
+
+/* Two places show the selection: the count above the roster and the button in
+ * the sidebar that would make a group of it. Both are relabelled in place
+ * rather than re-rendered, because this runs on every row of a drag across a
+ * table and rebuilding the sidebar mid-drag loses the drag. */
+function updateSelCount() {
+  var n = nSelected();
+  if (selInfoRef) selInfoRef.textContent = n ? n + " selected" : "";
+  if (selBtnRef && S.source) selBtnRef.textContent = n
+    ? "+ New group from " + n + " selected"
+    : "+ New group from all " + S.students.length + " in " + S.source.label;
 }
 
 /* Column widths persist, because a width you dragged is a preference, not a
@@ -406,6 +427,7 @@ function studentTable() {
       objectFit: "cover", borderRadius: "4px", display: "block" } });
     s._img = im;
     makeDragHandle(im, s);
+    im.title = "Drag to a group in the sidebar";
     tdPic.appendChild(im);
     tr.appendChild(tdPic);
 

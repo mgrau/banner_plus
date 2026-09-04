@@ -48,6 +48,12 @@ SECTIONS = {
         {"courseReferenceNumber": "10001", "subjectCode": "PHYS", "courseNumber": "101",
          "courseSection": "1", "courseTitle": "Introductory Physics",
          "courseEnrolmentCount": 3, "classlistEnabled": True},
+        # A second class with students in it, sharing one of PHYS 101's — so a
+        # group built from both has to combine them without counting anyone
+        # twice.
+        {"courseReferenceNumber": "10003", "subjectCode": "PHYS", "courseNumber": "226",
+         "courseSection": "1", "courseTitle": "Physics Laboratory",
+         "courseEnrolmentCount": 2, "classlistEnabled": True},
         {"courseReferenceNumber": "10002", "subjectCode": "PHYS", "courseNumber": "420",
          "courseSection": "0", "courseTitle": "Quantum Mechanics",
          "courseEnrolmentCount": 0, "classlistEnabled": True},
@@ -76,7 +82,10 @@ STUDENTS = {
                "email": "lnguy004@odu.edu", "confidential": False},
 }
 
-ROSTERS = {"10001": ["900001", "900002", "900003"], "20001": ["900001", "900003"]}
+ROSTERS = {"10001": ["900001", "900002", "900003"], "20001": ["900001", "900003"],
+           # Shares 900002 with PHYS 101 and brings 900004, who is in neither
+           # of the other Fall sections.
+           "10003": ["900002", "900004"]}
 
 # pidm -> [course]. crn 10001/10002 have meeting times; 30001 deliberately does not.
 HISTORY = {
@@ -91,6 +100,8 @@ HISTORY = {
     "900002": [
         {"termCode": "202610", "term": "Fall 2026", "crn": "10002", "course": "PHYS 420",
          "courseTitle": "Quantum Mechanics", "credits": "3", "finalGrade": ""},
+        {"termCode": "202610", "term": "Fall 2026", "crn": "10003", "course": "PHYS 226",
+         "courseTitle": "Physics Laboratory", "credits": "1", "finalGrade": ""},
         {"termCode": "202520", "term": "Spring 2026", "crn": "20001", "course": "PHYS 232",
          "courseTitle": "Modern Physics", "credits": "3", "finalGrade": "B"},
     ],
@@ -101,6 +112,8 @@ HISTORY = {
     "900004": [
         {"termCode": "202610", "term": "Fall 2026", "crn": "10002", "course": "PHYS 420",
          "courseTitle": "Quantum Mechanics", "credits": "3", "finalGrade": ""},
+        {"termCode": "202610", "term": "Fall 2026", "crn": "10003", "course": "PHYS 226",
+         "courseTitle": "Physics Laboratory", "credits": "1", "finalGrade": ""},
     ],
 }
 
@@ -114,6 +127,11 @@ MEETINGS = {
     "20001": {"monday": True, "wednesday": True,
               "beginTime": "1100", "endTime": "1215",
               "buildingDescription": "Oceanography", "room": "108"},
+    # Deliberately clear of Monday morning: the free-time check reads Mon 9am
+    # and expects exactly one of PHYS 101's three to be free then.
+    "10003": {"tuesday": True, "thursday": True,
+              "beginTime": "1000", "endTime": "1150",
+              "buildingDescription": "Oceanography", "room": "12"},
 }
 
 # crn -> who teaches it, riding along in the same fmt[] as the meeting times.
@@ -128,6 +146,8 @@ FACULTY = {
                "emailAddress": "mgrau@odu.edu", "primaryIndicator": True}],
     "10002": [{"bannerId": "00900100", "displayName": "GRAU, MATTHEW",
                "emailAddress": "mgrau@odu.edu", "primaryIndicator": True}],
+    "10003": [{"bannerId": "00900101", "displayName": "OKAFOR, ADAEZE",
+               "emailAddress": "aokafor@odu.edu", "primaryIndicator": True}],
     "20001": [{"bannerId": "00900102", "displayName": "VAN DER BERG, PIETER",
                "emailAddress": "pvander@odu.edu", "primaryIndicator": True}],
     "30001": [{"bannerId": "00900103", "displayName": "REYES, CARMEN",

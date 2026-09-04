@@ -123,12 +123,14 @@ CHECKS = [
     """),
 
     ("my classes list, empty section hidden", r"""
-      await waitFor("sections", () => sectionRows().length >= 1);
+      await waitFor("sections", () => sectionRows().length >= 2);
       const labels = sectionRows().map((r) => text(r));
-      if (!labels.some((l) => /PHYS 101/.test(l))) return "no PHYS 101: " + labels.join("|");
+      for (const want of ["PHYS 101", "PHYS 226"])
+        if (!labels.some((l) => l.indexOf(want) > -1)) return "no " + want + ": " + labels.join("|");
       if (labels.some((l) => /PHYS 420/.test(l)))
         return "PHYS 420 has nobody in it and should be hidden";
-      if (!/1 class/.test(status())) return "status says: " + status();
+      if (!/2 classes/.test(status())) return "status says: " + status();
+      if (!/1 empty hidden/.test(status())) return "the hidden one is not accounted for: " + status();
       return true;
     """),
 
@@ -384,6 +386,91 @@ CHECKS = [
       if (!/Linh Nguyen/.test(text(main()))) return "group roster: " + text(main()).slice(0, 200);
       // A pasted student has no CRN, so this exercises the CRN-free endpoints.
       if (!/Chemistry/.test(text(main()))) return "major not filled in for a group member";
+      return true;
+    """),
+
+    ("a group from the students ticked in the roster", r"""
+      await openFall101();
+      // Nothing ticked: the button offers the whole class.
+      const btn = () => containing("button", "New group from", side())
+        .filter((b) => !/UINs/.test(text(b)))[0];
+      if (!btn()) return "no button to make a group of the roster";
+      if (!/all 3 in PHYS 101/.test(text(btn()))) return "it says: " + text(btn());
+
+      // Tick two of the three, from the grid.
+      const cards = $$("img", main()).map((i) => i.parentNode);
+      const tickOf = (c) => Array.from(c.children).filter((n) => n.title === "Select")[0];
+      click(tickOf(cards[0]));
+      click(tickOf(cards[1]));
+      await sleep(60);
+      if (!/2 selected/.test(text(btn()))) return "after ticking two it says: " + text(btn());
+
+      click(btn());
+      await waitFor("the editor", () => byText("div", "New group from 2 students"));
+      const card = byText("div", "New group from 2 students").parentNode;
+      if (!/Members \(2\)/.test(text(card))) return "members: " + text(card).slice(0, 200);
+      if (!/Jane A Doe/.test(text(card))) return "the ticked students are not in it";
+      $$("input", card)[0].value = "Lab crew";
+      click(byText("button", "Create group", card));
+
+      await waitFor("the group", () => groupRows().length >= 1);
+      if (!/Lab crew/.test(text(groupRows()[0]))) return "sidebar: " + text(groupRows()[0]);
+      if (!/2 students/.test(text(groupRows()[0]))) return "count: " + text(groupRows()[0]);
+      await waitFor("its roster", () => $$("img", main()).length === 2, 9000);
+      return true;
+    """),
+
+    ("a group from two classes at once, without duplicates", r"""
+      await booted();
+      await waitFor("both classes", () => sectionRows().length >= 2);
+      const boxes = sectionRows().map((r) => r.querySelector('input[type="checkbox"]'));
+      if (boxes.some((b) => !b)) return "a class row has no tick box";
+      // A dispatched click toggles the box itself, so it is only clicked —
+      // setting .checked first would land on the opposite of what was meant.
+      // Ticking must also not open the class.
+      click(boxes[0]);
+      await sleep(60);
+      if ($$("img", main()).length) return "ticking a class opened it";
+      click(sectionRows().map((r) => r.querySelector('input[type="checkbox"]'))[1]);
+      await waitFor("the combine button", () => byText("button", "+ New group from 2 classes", side()));
+
+      click(byText("button", "+ New group from 2 classes", side()));
+      await waitFor("the editor", () => byText("div", "New group from 2 classes"), 9000);
+      const card = byText("div", "New group from 2 classes").parentNode;
+      // 3 in PHYS 101 and 2 in PHYS 226, one of them in both.
+      if (!/Members \(4\)/.test(text(card))) return "members: " + text(card).slice(0, 240);
+      if (!/1 in more than one/.test(status())) return "status says: " + status();
+      const names = text(card);
+      for (const who of ["Jane A Doe", "John Smith", "Mary-Jo O'Brien", "Linh Nguyen"])
+        if (names.indexOf(who) < 0) return "missing " + who;
+      // Named after what it was built from, and editable before saving.
+      if ($$("input", card)[0].value !== "PHYS 101-1 + PHYS 226-1")
+        return "suggested name: " + $$("input", card)[0].value;
+      click(byText("button", "Create group", card));
+      await waitFor("the group", () => groupRows().length >= 1);
+      if (!/4 students/.test(text(groupRows()[0]))) return "count: " + text(groupRows()[0]);
+      // The ticks were the question; they go once it is answered.
+      if (sectionRows().some((r) => r.querySelector('input[type="checkbox"]').checked))
+        return "the class ticks are still set";
+      return true;
+    """),
+
+    ("dropping students on New group opens it with them in it", r"""
+      await openFall101();
+      const target = byText("button", "+ New group from UINs", side());
+      if (!target) return "no new-group button to drop on";
+      // The whole card is the handle now, not just the photograph.
+      const cardEl = $$("img", main())[0].parentNode;
+      if (cardEl.draggable !== true) return "the roster card is not draggable";
+      const dt = new DataTransfer();
+      cardEl.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: dt }));
+      target.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: dt }));
+      target.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: dt }));
+      cardEl.dispatchEvent(new DragEvent("dragend", { bubbles: true, dataTransfer: dt }));
+      await waitFor("the editor", () => byText("div", "New group from 1 student"));
+      const card = byText("div", "New group from 1 student").parentNode;
+      if (!/Members \(1\)/.test(text(card))) return "members: " + text(card).slice(0, 200);
+      if (!/01234567/.test(text(card))) return "the dropped student is not in it";
       return true;
     """),
 

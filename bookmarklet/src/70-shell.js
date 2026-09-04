@@ -14,6 +14,10 @@ var S = {
   sections: [], groups: loadGroups(),
   source: null,            // {kind:'section'|'group', crn|name, label}
   students: [], sel: {}, focus: null,
+  // Classes ticked in the sidebar, keyed term:crn — the basis for a group
+  // built out of several rosters at once. Not the open section: you tick the
+  // ones you are combining and then open whichever you like.
+  selSections: {},
   sat: false,              // include Saturday in the free-time grid
   // Under "All terms" the sidebar mixes terms, so every data call follows the
   // section that was opened rather than whatever the dropdown reads.

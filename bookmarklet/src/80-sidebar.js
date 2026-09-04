@@ -1,14 +1,72 @@
 /* ---- The sidebar and the group editor -------------------------------------
  *
  * Your sections for the selected term, then your groups. A group in this list
- * is also a drop target: select students in the roster and drag one of their
- * photos here to add them.
+ * is also a drop target: select students in the roster and drag them here to
+ * add them.
+ *
+ * Four ways to build a group, because people arrive holding different things:
+ *
+ *   drag      students from a roster onto a group, or onto "New group" when
+ *             there is not a group yet
+ *   selection whoever is ticked in the roster, straight from this pane
+ *   classes   tick two or more classes and combine their rosters
+ *   by hand   search by name, or paste UINs
+ *
+ * The first three all end in the same editor as the last, prefilled. Building
+ * a group is not the same as being sure of it, and the list is where you check.
  *
  * The editor is a membership list, because that is what a group is. It
  * replaced a textarea of bare UINs, which was fine for creating a group in one
  * go and useless for checking one — a column of eight-digit numbers cannot be
  * read.
  */
+
+function sectionKey(sec) { return (sec.term || S.term) + ":" + sec.crn; }
+
+function pickedSections() {
+  return S.sections.filter(function (s) { return S.selSections[sectionKey(s)]; });
+}
+
+/* A button that offers to build a group out of something you have already
+ * gathered. Dashed like "New group", because all of them make the same kind of
+ * thing; the label says what it would be made of. */
+function groupBtn(label, title, fn) {
+  var b = el("button", { text: label, title: title, style: {
+    width: "100%", marginTop: "6px", padding: "6px", borderRadius: "6px",
+    border: "1px dashed #c7d0dd", background: "transparent", color: "#41556f",
+    cursor: "pointer", font: "inherit", fontSize: "12px" } });
+  b.onclick = fn;
+  return b;
+}
+
+/* Accepting a drop of students. The same three handlers on a group row and on
+ * the new-group button; only what happens at the end differs. dataTransfer
+ * cannot be read during dragover, so the highlight is driven by a variable set
+ * at dragstart. */
+function dropTarget(node, paint, onDrop) {
+  node.addEventListener("dragover", function (ev) {
+    if (!dragCarry) return;
+    ev.preventDefault();
+    ev.dataTransfer.dropEffect = "copy";
+    node.style.background = "#d7e8ff";
+    node.style.borderColor = "#2a78d6";
+    if (paint) paint(true);
+  });
+  node.addEventListener("dragleave", function () { if (paint) paint(false); });
+  node.addEventListener("drop", function (ev) {
+    ev.preventDefault();
+    var carry = dragCarry;
+    if (!carry) {
+      try { carry = JSON.parse(ev.dataTransfer.getData("application/x-bc-students")); }
+      catch (e) { carry = null; }
+    }
+    dragCarry = null;
+    document.body.removeAttribute("data-bc-dragging");
+    if (paint) paint(false);
+    if (!carry || !carry.length) { renderSide(); return; }
+    onDrop(carry);
+  });
+}
 
 function renderSide() {
   side.innerHTML = "";
@@ -22,10 +80,30 @@ function renderSide() {
   S.sections.forEach(function (sec) {
     var on = S.source && S.source.kind === "section" && S.source.crn === sec.crn;
     var b = el("div", { style: {
+      display: "flex", gap: "6px", alignItems: "flex-start",
       padding: "6px 8px", borderRadius: "6px", cursor: "pointer", marginBottom: "3px",
       background: on ? "#e7f0fd" : "transparent",
       borderLeft: on ? "3px solid #2a78d6" : "3px solid transparent"
     } });
+
+    /* Ticking classes is how a group gets built out of more than one roster.
+     * A checkbox rather than a modifier-click: nobody discovers a
+     * modifier-click, and the box also says that ticking is not opening. */
+    var tick = el("input", { type: "checkbox",
+      title: "Combine this class with others into a group",
+      style: { margin: "3px 0 0", flex: "0 0 auto", accentColor: "#2a78d6", cursor: "pointer" } });
+    tick.checked = !!S.selSections[sectionKey(sec)];
+    // The row opens the section; the box must not, or ticking four classes
+    // would load four rosters nobody asked to see.
+    tick.onmousedown = function (ev) { ev.stopPropagation(); };
+    tick.onclick = function (ev) {
+      ev.stopPropagation();
+      S.selSections[sectionKey(sec)] = tick.checked;
+      renderSide();
+    };
+    b.appendChild(tick);
+
+    var body = el("div", { style: { flex: "1 1 auto", minWidth: "0" } });
     var head = el("div", { style: { display: "flex", alignItems: "baseline", gap: "5px" } });
     head.appendChild(el("div", { text: sec.label || sec.crn,
       style: { fontWeight: "600", fontSize: "12.5px" } }));
@@ -34,7 +112,7 @@ function renderSide() {
         title: sec.enrolled + " enrolled",
         style: { marginLeft: "auto", fontSize: "11px", fontWeight: "600",
                  color: sec.enrolled === "0" ? "#9aa1ab" : "#2a78d6" } }));
-    b.appendChild(head);
+    body.appendChild(head);
     // Truncate the title, never the CRN — the CRN is the part you might need
     // to type somewhere else, and it was being eaten by the ellipsis.
     var subline = el("div", { style: { display: "flex", gap: "5px", fontSize: "11px",
@@ -44,13 +122,23 @@ function renderSide() {
     subline.appendChild(el("div", {
       text: (S.term === ALL_TERMS_CODE && sec.termLabel ? sec.termLabel + " · " : "") + sec.crn,
       style: { marginLeft: "auto", flex: "0 0 auto", fontVariantNumeric: "tabular-nums" } }));
-    b.appendChild(subline);
+    body.appendChild(subline);
+    b.appendChild(body);
     // An empty section is still worth listing — you may be checking whether
     // anyone has registered — but it should not look like a normal one.
     if (sec.enrolled === "0") b.style.opacity = ".62";
     b.onclick = function () { openSection(sec); };
     side.appendChild(b);
   });
+
+  var picked = pickedSections();
+  if (picked.length) {
+    side.appendChild(groupBtn(
+      "+ New group from " + picked.length + " class" + (picked.length === 1 ? "" : "es"),
+      "Loads each roster and combines them, without duplicates: " +
+      picked.map(function (s) { return s.label; }).join(", "),
+      function () { newGroupFromSections(picked); }));
+  }
 
   side.appendChild(el("div", { text: "Groups",
     style: { fontSize: "11px", color: "#6b7280", fontWeight: "600", margin: "14px 0 6px" } }));
@@ -67,29 +155,10 @@ function renderSide() {
       style: { fontSize: "11px", color: "#6b7280" } }));
     lab.onclick = function () { openGroup(grp); };
 
-    // Drop target. dataTransfer cannot be read during dragover, so the count
-    // comes from a body attribute set at dragstart.
-    wrap.addEventListener("dragover", function (ev) {
-      if (!dragCarry) return;
-      ev.preventDefault();
-      ev.dataTransfer.dropEffect = "copy";
-      wrap.style.background = "#d7e8ff";
-      wrap.style.borderLeft = "3px solid #2a78d6";
-    });
-    wrap.addEventListener("dragleave", function () {
-      wrap.style.background = on ? "#e7f0fd" : "transparent";
-      wrap.style.borderLeft = on ? "3px solid #2a78d6" : "3px solid transparent";
-    });
-    wrap.addEventListener("drop", function (ev) {
-      ev.preventDefault();
-      var carry = dragCarry;
-      if (!carry) {
-        try { carry = JSON.parse(ev.dataTransfer.getData("application/x-bc-students")); }
-        catch (e) { carry = null; }
-      }
-      dragCarry = null;
-      document.body.removeAttribute("data-bc-dragging");
-      if (!carry || !carry.length) { renderSide(); return; }
+    dropTarget(wrap, function (over) {
+      wrap.style.background = over ? "#d7e8ff" : (on ? "#e7f0fd" : "transparent");
+      wrap.style.borderLeft = (over || on) ? "3px solid #2a78d6" : "3px solid transparent";
+    }, function (carry) {
       var n = addToGroup(i, carry);
       idle(n
         ? n + " added to " + grp.name
@@ -121,11 +190,31 @@ function renderSide() {
     side.appendChild(wrap);
   });
 
-  var add = el("button", { text: "+ New group from UINs", style: {
-    width: "100%", marginTop: "6px", padding: "6px", borderRadius: "6px",
-    border: "1px dashed #c7d0dd", background: "transparent", color: "#41556f",
-    cursor: "pointer", font: "inherit", fontSize: "12px" } });
-  add.onclick = newGroup;
+  /* Straight from whoever is ticked in the roster. This is the sidebar's half
+   * of a gesture that starts in the middle pane, which is why it lives here
+   * and not next to "Select all": the group being made is a thing in this
+   * list, and it should appear where it will end up. */
+  if (S.students.length) {
+    var n = nSelected();
+    selBtnRef = groupBtn(
+      n ? "+ New group from " + n + " selected"
+        : "+ New group from all " + S.students.length + " in " + S.source.label,
+      "Opens the group editor with them already in it.",
+      function () { newGroupFromStudents(selectedStudents()); });
+    side.appendChild(selBtnRef);
+  } else {
+    selBtnRef = null;
+  }
+
+  var add = groupBtn("+ New group from UINs",
+    "Search by name or paste UINs — or drag students here from a roster.", newGroup);
+  /* Also a drop target, because until a group exists there is nowhere to drag
+   * to, and "make a group first" is a poor answer to somebody holding a
+   * selection. Dropping here opens the editor with them in it. */
+  dropTarget(add, function (over) {
+    add.style.background = over ? "#d7e8ff" : "transparent";
+    add.style.borderColor = over ? "#2a78d6" : "#c7d0dd";
+  }, function (carry) { newGroupFromStudents(carry); });
   side.appendChild(add);
 }
 
@@ -327,19 +416,87 @@ function showGroupModal(opts) {
   document.addEventListener("keydown", onKey, true);
 
   renderMembers();
-  if (members.length) searchIn.focus(); else nameIn.focus();
+  /* The name, unless the group already has one. A group arriving prefilled —
+   * from a selection, a drop, or a set of classes — has its membership settled
+   * and its name missing, which is the opposite of editing an existing one. */
+  if (opts.focusMembers) searchIn.focus();
+  else { nameIn.focus(); nameIn.select(); }
+}
+
+function createGroup(name, students) {
+  S.groups.push({ name: name, students: students });
+  saveGroups(S.groups);
+  renderSide();
+  openGroup(S.groups[S.groups.length - 1]);
 }
 
 function newGroup() {
   showGroupModal({
     title: "New group",
     submitLabel: "Create group",
-    onSave: function (name, students) {
-      S.groups.push({ name: name, students: students });
-      saveGroups(S.groups);
-      renderSide();
-      openGroup(S.groups[S.groups.length - 1]);
-    }
+    onSave: createGroup
+  });
+}
+
+/* A group from students already in hand — ticked in the roster, or dragged
+ * onto the sidebar.
+ *
+ * It opens the editor rather than creating the group outright. A group needs a
+ * name, and "Group 3" is a name nobody meant; the membership is also worth one
+ * look before it is saved, which is what the editor is for. */
+function newGroupFromStudents(list) {
+  var members = (list || []).map(function (s) {
+    return { uin: String(s.uin || ""), name: s.name || "" };
+  }).filter(function (m) { return m.uin; });
+  showGroupModal({
+    title: "New group from " + members.length + " student" + (members.length === 1 ? "" : "s"),
+    submitLabel: "Create group",
+    students: members,
+    onSave: createGroup
+  });
+}
+
+/* A group from whole rosters.
+ *
+ * Combining classes is how a cohort gets described: the students who took any
+ * of these three courses. Duplicates are the point rather than an edge case —
+ * anyone in two of them must appear once — so the union is by UIN and the
+ * status line says how many were in more than one, because that number is
+ * usually the interesting one.
+ */
+function newGroupFromSections(secs) {
+  taskBegin("Loading " + secs.length + " roster" + (secs.length === 1 ? "" : "s") + "…");
+  pool(secs, 3, function (sec) {
+    return fetchRoster(sec.term || S.term, sec.crn).catch(function () { return []; });
+  }, function (d, t) { prog("Rosters… " + d + "/" + t, d, t); }).then(function (lists) {
+    var seen = {}, members = [], rows = 0;
+    (lists || []).forEach(function (l) {
+      (l || []).forEach(function (s) {
+        var k = String(s.uin || "").replace(/^0+/, "");
+        if (!k) return;
+        rows++;
+        if (seen[k]) return;
+        seen[k] = 1;
+        members.push({ uin: String(s.uin), name: s.name || "" });
+      });
+    });
+    var both = rows - members.length;
+    idle(members.length + " from " + secs.length + " class" + (secs.length === 1 ? "" : "es") +
+         (both ? " · " + both + " in more than one" : ""));
+
+    var name = secs.map(function (s) { return s.label || s.crn; }).join(" + ");
+    if (name.length > 42) name = secs.length + " classes";
+    showGroupModal({
+      title: "New group from " + secs.length + " class" + (secs.length === 1 ? "" : "es"),
+      submitLabel: "Create group",
+      name: name,
+      students: members,
+      onSave: function (nm, students) {
+        // The ticks were the question; the group is the answer to it.
+        S.selSections = {};
+        createGroup(nm, students);
+      }
+    });
   });
 }
 
@@ -350,6 +507,7 @@ function editGroup(i) {
     submitLabel: "Save",
     name: grp.name,
     students: grp.students,
+    focusMembers: true,
     onSave: function (name, students) {
       var wasOpen = S.source && S.source.kind === "group" && S.source.name === grp.name;
       S.groups[i] = { name: name, students: students };
