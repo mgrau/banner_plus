@@ -59,25 +59,33 @@ function loadSections() {
   }
 
   job.then(function (secs) {
-    var shown = withStudents(secs);
-    S.sections = shown;
-    var hidden = secs.length - shown.length;
-    /* Distinguish "you teach nothing" from "the call failed" — they looked
-     * identical, and only one of them is a bug. A failed warm-up is named
-     * separately again, because that one has a fix the reader can apply: open
-     * Faculty Class List and click again. */
-    idle(shown.length
-      ? shown.length + " class" + (shown.length === 1 ? "" : "es") +
-        (hidden ? " · " + hidden + " empty hidden" : "")
-      : (/^request failed/.test(sectionDiag.keys || "")
-          ? (/^failed/.test(sectionDiag.warmed || "")
-              ? "couldn't reach the class list app — open Faculty Class List, then click again"
-              : "couldn't load classes — " + sectionDiag.keys)
-          : hidden ? hidden + " empty section" + (hidden === 1 ? "" : "s") + ", none with students"
-                   : "no classes in " + S.termLabel));
-    if (!secs.length) console.warn("[console] courseList returned no usable rows;", sectionDiag);
-    renderSide();
+    S.allSections = secs;
+    showSections();
   });
+}
+
+/* Filter the loaded sections and redraw. Separate from loading so the
+ * "Show empty" box in the sidebar answers at once instead of refetching. */
+function showSections() {
+  var secs = S.allSections;
+  var shown = withStudents(secs);
+  S.sections = shown;
+  var hidden = secs.length - shown.length;
+  /* Distinguish "you teach nothing" from "the call failed" — they looked
+   * identical, and only one of them is a bug. A failed warm-up is named
+   * separately again, because that one has a fix the reader can apply: open
+   * Faculty Class List and click again. */
+  idle(shown.length
+    ? shown.length + " class" + (shown.length === 1 ? "" : "es") +
+      (hidden ? " · " + hidden + " empty hidden" : "")
+    : (/^request failed/.test(sectionDiag.keys || "")
+        ? (/^failed/.test(sectionDiag.warmed || "")
+            ? "couldn't reach the class list app — open Faculty Class List, then click again"
+            : "couldn't load classes — " + sectionDiag.keys)
+        : hidden ? hidden + " empty section" + (hidden === 1 ? "" : "s") + ", none with students"
+                 : "no classes in " + S.termLabel));
+  if (!secs.length) console.warn("[console] courseList returned no usable rows;", sectionDiag);
+  renderSide();
 }
 
 termSel.onchange = function () {

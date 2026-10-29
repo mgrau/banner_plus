@@ -134,6 +134,23 @@ CHECKS = [
       return true;
     """),
 
+    ("show empty ticks PHYS 420 into the list, and back out", r"""
+      await booted();
+      const box = await waitFor("the show-empty box", () =>
+        containing("label", "Show empty", side())[0]);
+      if (!/Show empty \(1\)/.test(text(box))) return "label says: " + text(box);
+      const cb = box.querySelector("input");
+      cb.click();
+      await waitFor("PHYS 420 to appear", () =>
+        sectionRows().some((r) => /PHYS 420/.test(text(r))));
+      if (!/3 classes/.test(status())) return "status says: " + status();
+      containing("label", "Show empty", side())[0].querySelector("input").click();
+      await waitFor("PHYS 420 to go again", () =>
+        !sectionRows().some((r) => /PHYS 420/.test(text(r))));
+      if (!/1 empty hidden/.test(status())) return "status says: " + status();
+      return true;
+    """),
+
     ("roster loads with photographs", r"""
       await openFall101();
       await waitFor("photos", () => /students/.test(status()) && !/Photos/.test(status()));
@@ -334,7 +351,7 @@ CHECKS = [
       if (drawer().style.visibility !== "visible") return "drawer did not open";
       const d = text(drawer());
       if (!/Show every term/.test(d)) return "no term setting";
-      if (!/Hide empty sections/.test(d)) return "no empty-section setting";
+      if (/empty/i.test(d)) return "the empty-section toggle belongs in the sidebar now";
       if (!/Reset table column widths/.test(d)) return "no width reset";
       /* The link home is worked out from where console.js was loaded, so under
          test it points at the stub's own root — which is the whole point: a

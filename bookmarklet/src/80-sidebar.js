@@ -110,8 +110,27 @@ function dropTarget(node, paint, onDrop) {
 
 function renderSide() {
   side.innerHTML = "";
-  side.appendChild(el("div", { text: "My classes",
-    style: { fontSize: "11px", color: "#6b7280", fontWeight: "600", margin: "2px 0 6px" } }));
+  var classHead = el("div", { style: { display: "flex", alignItems: "center",
+    margin: "2px 0 6px", fontSize: "11px", color: "#6b7280" } });
+  classHead.appendChild(el("div", { text: "My classes", style: { fontWeight: "600" } }));
+  /* Empty sections are hidden by default, but sometimes the question is
+   * exactly whether anyone has registered yet. The box sits beside the list it
+   * changes, and only appears when there is an empty section to show. */
+  var nEmpty = S.allSections.filter(function (x) { return x.enrolled === "0"; }).length;
+  if (nEmpty) {
+    var showLbl = el("label", { title: "Sections with nobody enrolled \u2014 cross-listed " +
+        "shells, dissertation sections, classes nobody has registered for yet.",
+      style: { marginLeft: "auto", display: "flex", alignItems: "center", gap: "4px",
+               cursor: "pointer", userSelect: "none" } });
+    var showBox = el("input", { type: "checkbox",
+      style: { margin: "0", accentColor: "#2a78d6", cursor: "pointer" } });
+    showBox.checked = !S.hideEmpty;
+    showBox.onchange = function () { S.hideEmpty = !showBox.checked; showSections(); };
+    showLbl.appendChild(showBox);
+    showLbl.appendChild(document.createTextNode("Show empty (" + nEmpty + ")"));
+    classHead.appendChild(showLbl);
+  }
+  side.appendChild(classHead);
 
   if (!S.sections.length)
     side.appendChild(el("div", { text: "none this term",

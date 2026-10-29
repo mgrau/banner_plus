@@ -22,7 +22,11 @@ var S = {
   // Under "All terms" the sidebar mixes terms, so every data call follows the
   // section that was opened rather than whatever the dropdown reads.
   activeTerm: null, activeLabel: "",
-  table: false, hideEmpty: true
+  table: false, hideEmpty: true,
+  // Every section the term returned, empty ones included. S.sections is this
+  // with the empty ones taken out, so the "Show empty" box can flip without
+  // fetching the term again.
+  allSections: []
 };
 
 var ALL_TERMS_CODE = "__all__";
@@ -79,8 +83,6 @@ bar.appendChild(spacer);
  * is a small box pinned to a corner \u2014 fine for two switches, cramped for
  * anything that wants a sentence saying what it does. */
 var allTermsBox = el("input", { type: "checkbox" });
-var hideEmptyBox = el("input", { type: "checkbox" });
-hideEmptyBox.checked = true;
 
 var drawer = el("div", { style: {
   position: "absolute", top: "0", right: "0", bottom: "0", width: "330px",
@@ -127,9 +129,6 @@ function setting(box, labelText, hint, onChange) {
 drawer.appendChild(setting(allTermsBox, "Show every term",
   "Includes eight-week sessions and medical-school terms, which are normally hidden.",
   function () { S.allTerms = allTermsBox.checked; fillTerms(); termSel.onchange(); }));
-drawer.appendChild(setting(hideEmptyBox, "Hide empty sections",
-  "Sections with nobody enrolled \u2014 cross-listed shells, dissertation sections.",
-  function () { S.hideEmpty = hideEmptyBox.checked; loadSections(); }));
 
 /* Faces per row on the printed roster.
  *
