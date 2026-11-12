@@ -149,6 +149,44 @@ function exitLinks(s) {
   return links;
 }
 
+/* Majors by term, newest first, like the transcript. The Major line in the
+ * facts is the selected term's; this is where a change of major shows.
+ *
+ * Fills in after the pane is drawn: it is one request per term, and the
+ * schedule should not wait for it. A single run is still shown, because
+ * "Physics, Fall 2023 to Fall 2026" is an answer and a blank is not. */
+function majorHistoryBox(s) {
+  var box = el("div", { style: { margin: "0 0 10px", fontSize: "12px" } });
+  box.appendChild(el("div", { text: "Major by term",
+    title: "The primary major Banner had on file in each term of the record.",
+    style: { fontWeight: "700", fontSize: "12px", margin: "6px 0 4px", color: "#41556f" } }));
+  var body = el("div", { text: "Loading…", style: { color: "#9aa1ab", fontSize: "11.5px" } });
+  box.appendChild(body);
+
+  fetchMajorHistory(s).then(function (rows) {
+    var runs = majorRuns(rows);
+    body.innerHTML = "";
+    if (!runs.length) {
+      body.textContent = "Banner didn't name a major for any term on record";
+      body.style.fontStyle = "italic";
+      return;
+    }
+    body.style.color = "#16191f";
+    body.style.fontSize = "12px";
+    runs.slice().reverse().forEach(function (r, i) {
+      var line = el("div", { style: { display: "flex", gap: "8px", alignItems: "baseline",
+        padding: "1px 0" } });
+      // The current one in bold; earlier ones read as history.
+      line.appendChild(el("span", { text: r.major, style: {
+        fontWeight: i ? "400" : "600", color: i ? "#41556f" : "#16191f" } }));
+      line.appendChild(el("span", { text: r.from === r.to ? r.from : r.from + " – " + r.to,
+        style: { marginLeft: "auto", color: "#6b7280", fontSize: "11px", whiteSpace: "nowrap" } }));
+      body.appendChild(line);
+    });
+  });
+  return box;
+}
+
 function focusStudent(s) {
   S.focus = s;
   renderMain();
@@ -181,7 +219,7 @@ function focusStudent(s) {
   hydrate([s], curTerm()).then(function () {
     idle(null);
     if (S.table) renderMain();
-    var out = [nodes[0], nodes[1], exitLinks(s)];
+    var out = [nodes[0], nodes[1], exitLinks(s), majorHistoryBox(s)];
 
     var now = (s.history || []).filter(function (c) { return c.termCode === curTerm(); });
     out.push(el("div", { text: "This term", style: {

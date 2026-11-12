@@ -157,6 +157,16 @@ because they are wanted.
 
 `data.contactCardConfig[]` lists which card fields the institution has enabled.
 
+**Per term.** The student pane asks this once for every term on a student's
+registration history, and reads `primaryMajor` from each, to show a change of
+major. That relies on `termCode` selecting the curriculum effective in that
+term, as Banner's effective-dated curriculum suggests it should. **Not yet
+confirmed against ODU.** If `termCode` turns out to be ignored, every term
+answers with today's major, and the pane will say a student never changed
+when they did — so check it against a student known to have switched before
+trusting it. The fallback is `studentDetails/curriculum`, which is
+term-keyed for certain and lists every major, but needs a CRN from that term.
+
 ### Registration history
 
 `ssb/registrationHistory/fetchRegistrationHistory` (POST, JSON `{term, xyz}`)

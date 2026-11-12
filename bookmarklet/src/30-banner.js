@@ -390,6 +390,55 @@ function fetchContactCard(s, term) {
     }).catch(function () { return null; });
 }
 
+/* The major a student held in each term they were registered.
+ *
+ * Every other view shows the selected term's curriculum, so a student who
+ * switched from Biology to Physics looks like they were always in Physics.
+ * Banner keeps curriculum effective-dated, so asking about an older term
+ * should give that term's answer.
+ *
+ * The contact card is asked rather than the curriculum call, though it names
+ * only the primary major: it is keyed by bannerId and termCode and nothing
+ * else. The curriculum call wants a CRN from that term, which for most terms
+ * is somebody else's section — the kind of request this console avoids.
+ *
+ * One request per term on the record, two at a time, cached per student and
+ * term. Made only when a student is opened; a roster's worth would be terms
+ * times students. */
+var majorCache = {};
+
+function fetchMajorAt(uin, termCode) {
+  var k = uin + ":" + termCode;
+  if (!majorCache[k]) {
+    majorCache[k] = apiGet("studentContactCard/retrieveData", "bannerId=" +
+      encodeURIComponent(uin) + "&termCode=" + encodeURIComponent(termCode))
+      .then(function (j) {
+        var c = (j && j.data && j.data.contactCard) || (j && j.contactCard) || {};
+        return c.primaryMajor || null;
+      }).catch(function () { return null; });
+  }
+  return majorCache[k];
+}
+
+// Oldest first, one row per term on the record; major is null where Banner
+// did not say.
+function fetchMajorHistory(s) {
+  var seen = {}, terms = [];
+  (s.history || []).forEach(function (c) {
+    if (!c.termCode || seen[c.termCode]) return;
+    seen[c.termCode] = 1;
+    terms.push({ code: c.termCode, label: c.term || c.termCode });
+  });
+  if (!s.uin || !terms.length) return Promise.resolve([]);
+  // Term codes sort chronologically: academic year, then 1 Fall, 2 Spring, 3 Summer.
+  terms.sort(function (a, b) { return a.code.localeCompare(b.code); });
+  return pool(terms, 2, function (t) {
+    return fetchMajorAt(s.uin, t.code).then(function (m) {
+      return { code: t.code, label: t.label, major: m };
+    });
+  });
+}
+
 var historyCache = {};
 function fetchHistory(s, term) {
   if (s.history) return Promise.resolve(s.history);

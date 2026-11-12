@@ -117,6 +117,10 @@ HISTORY = {
     ],
 }
 
+# pidm -> {termCode: major}, for a student whose major changed. Any term not
+# listed answers with the major in STUDENTS. Jane started in Biology.
+MAJOR_BY_TERM = {"900001": {"202430": "Biology"}}
+
 MEETINGS = {
     "10001": {"monday": True, "wednesday": True, "friday": True,
               "beginTime": "0900", "endTime": "0950",
@@ -342,8 +346,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if p is None:
                 return self.not_found()
             s = STUDENTS[p]
+            major = MAJOR_BY_TERM.get(p, {}).get(q.get("termCode", ""), s["major"])
             return self.send_json({"data": {"contactCard": {
-                "primaryMajor": s["major"], "primaryProgram": s["college"],
+                "primaryMajor": major, "primaryProgram": s["college"],
                 "emailAddress": s["email"], "displayName": s["name"],
                 "isConfidentialStudent": s["confidential"]}}})
 

@@ -269,6 +269,29 @@ CHECKS = [
       return true;
     """),
 
+    ("major by term shows a change of major, newest first", r"""
+      await openFall101();
+      const lines = async () => {
+        const head = await waitFor("major by term", () => byText("div", "Major by term", rightPane()));
+        const body = head.parentNode.children[1];
+        await waitFor("majors to load", () => !/Loading/.test(text(body)));
+        return Array.from(body.children).map((n) => Array.from(n.children).map(text).join(" | "));
+      };
+
+      // Jane: Biology in Summer 2025, Physics from Spring 2026.
+      click($$("img", main())[0].parentNode);
+      let got = await lines();
+      const want = ["Physics | Spring 2026 – Fall 2026", "Biology | Summer 2025"];
+      if (got.join(" / ") !== want.join(" / ")) return "Jane: " + got.join(" / ");
+
+      // John never changed: one run, still shown.
+      click($$("img", main()).filter((i) => /John Smith/.test(text(i.parentNode)))[0].parentNode);
+      await waitFor("John's pane", () => byText("div", "John Smith", rightPane()));
+      got = await lines();
+      if (got.join(" / ") !== "Astrophysics | Spring 2026 – Fall 2026") return "John: " + got.join(" / ");
+      return true;
+    """),
+
     ("the two exit links sit above the record, not below it", r"""
       await openFall101();
       click($$("img", main())[0].parentNode);

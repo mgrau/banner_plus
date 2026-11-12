@@ -25,7 +25,8 @@ medical-school term it knows about and buries the three you teach in.
 Or switch to a table — sortable, with resizable columns — when you are reading
 rather than recognising.
 
-**A student pane**: photograph, major, college, standing, admit term, this
+**A student pane**: photograph, major, college, standing, admit term, the
+major they held in every term on record — so a change of major shows — this
 term's schedule with rooms, times and instructors, and the full registration
 history laid out as a transcript — seasons across, academic years down, newest
 first.

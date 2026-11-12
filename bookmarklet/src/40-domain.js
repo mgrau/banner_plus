@@ -26,6 +26,21 @@ function categoryFor(majors, cats) {
   return { label: "Other", color: OTHER_COLOR };
 }
 
+/* Consecutive terms with the same major, as one run each, oldest first —
+ * Biology from Summer 2025 to Summer 2025, then Physics from Spring 2026 on.
+ * A term Banner did not answer for neither breaks a run nor starts one: a gap
+ * in the data is not a change of major. */
+function majorRuns(rows) {
+  var runs = [];
+  (rows || []).forEach(function (r) {
+    if (!r || !r.major) return;
+    var last = runs[runs.length - 1];
+    if (last && last.major === r.major) { last.to = r.label; last.terms++; return; }
+    runs.push({ major: r.major, from: r.label, to: r.label, terms: 1 });
+  });
+  return runs;
+}
+
 /* A GPA from the letter grades on the transcript.
  *
  * Blind to repeats, grade forgiveness and transfer credit, so it can disagree
