@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import html as html_lib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -38,7 +39,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import stub  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+# $CHROME overrides it, so the same suite runs in CI on Linux, where the
+# publish workflow will not deploy a bundle that fails it.
+CHROME = os.environ.get("CHROME") or "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 PORT = 8802
 
 # Shared helpers, prepended to every check.

@@ -1,0 +1,67 @@
+# Publish the console on every push to main.
+#
+# The bookmark fetches console.js from Pages on each click, so whatever this
+# deploys is what every installed copy runs next. That is why it tests first:
+# a bundle that fails the suite never reaches anyone. It also means pushing is
+# publishing — there is no build.py step to forget, which is how a commit once
+# sat in main for days without being live.
+#
+# Needs Settings → Pages → Source set to "GitHub Actions".
+
+name: Publish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "bookmarklet/**"
+      - "test/**"
+      - ".github/workflows/publish.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one halfway.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - id: chrome
+        uses: browser-actions/setup-chrome@v1
+      - name: End-to-end checks against the stub
+        env:
+          CHROME: ${{ steps.chrome.outputs.chrome-path }}
+        run: python3 test/run.py
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Works out the Pages URL from the remote checkout set up, and refuses to
+      # write a placeholder into the install page.
+      - name: Build console.js and the install page
+        run: python3 bookmarklet/build.py
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deployment
+        uses: actions/deploy-pages@v4

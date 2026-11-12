@@ -4,8 +4,9 @@
     python3 bookmarklet/build.py
     python3 bookmarklet/build.py --base https://mgrau.github.io/banner_plus
 
-Writes docs/console.js and docs/index.html. Point GitHub Pages at "main /docs"
-and the page is live.
+Writes docs/console.js and docs/index.html. The Publish workflow runs this on
+every push to main and deploys docs/ to Pages, once the tests pass; running it
+by hand is for looking at the result locally.
 
 THE BUNDLE
 

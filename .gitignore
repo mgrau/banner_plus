@@ -9,8 +9,10 @@
 roster.json
 out/
 
-# The generated install page is the one HTML file meant to be committed.
-!docs/index.html
+# ---- Build output ----------------------------------------------------------
+# docs/ is what build.py writes. The Publish workflow builds it from src/ and
+# deploys it, so a committed copy could only ever be stale.
+docs/
 
 # ---- macOS / editors -------------------------------------------------------
 .DS_Store

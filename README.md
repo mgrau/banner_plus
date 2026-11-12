@@ -123,15 +123,17 @@ Banner is HTTPS and an HTTPS page normally refuses to load scripts over HTTP, bu
 loopback is exempt — browsers treat `http://127.0.0.1` as a potentially
 trustworthy origin. No certificate needed.
 
-To publish:
+To publish, push to `main`. The Publish workflow runs the test suite, and if it
+passes, builds the bundle and deploys it to Pages. A bundle that fails the
+suite is never deployed. There is no build step to remember — a commit once sat
+in `main` for days without being live because the rebuild was forgotten.
 
-```bash
-python3 bookmarklet/build.py
-git commit -am "rebuild" && git push
-```
+The bookmark loads the script from the site on each click, so everyone who has
+it installed is on the new version at their next click, without re-dragging.
+That is also why the deploy waits for the tests.
 
-The bookmark loads the script from the site on each click, so a fix is live
-without re-dragging. `build.py` works out the Pages URL from the git remote and
+`python3 bookmarklet/build.py` still builds `docs/` locally, if you want to look
+at the install page before pushing. `build.py` works out the Pages URL from the git remote and
 refuses to write a placeholder into the page — a wrong base ships a bookmark
 pointing at a URL that does not exist, and the failure surfaces as "could not
 load console.js" on somebody else's machine days later.
@@ -166,6 +168,7 @@ List first.
 You can also poke at it by hand:
 
 ```bash
+python3 bookmarklet/build.py      # the stub serves docs/console.js
 python3 test/stub.py
 open http://127.0.0.1:8801/FacultySelfService/ssb/classListApp/classListPage
 ```
