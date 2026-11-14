@@ -32,6 +32,12 @@ asks.
 Responses carry no-store and the bookmarklet appends a timestamp, so an edit is
 live on the next click rather than after a cache expires.
 
+A second bookmark, the recorder (recorder.js), is for finding endpoints.
+Clicked on a Banner page, it reports each request that page makes: path,
+parameter names, status, and the shape of the answer, field names and types
+and never values. One JSON line per request goes to --record-to, outside the
+repository.
+
 This is a development tool. It binds to loopback only and has nothing to do
 with the published bookmarklet in docs/.
 """
@@ -40,7 +46,9 @@ from __future__ import annotations
 
 import argparse
 import http.server
+import json
 import sys
+import tempfile
 import time
 import traceback
 from pathlib import Path
@@ -61,6 +69,13 @@ def dev_bookmarklet(port: int) -> str:
                   unreachable="Dev server not reachable on port %d \\u2014 "
                               "is devserve.py still running, and has Chrome been "
                               "allowed to reach this computer from this site?" % port)
+
+
+def recorder_bookmarklet(port: int) -> str:
+    return ("javascript:(function(){var s=document.createElement('script');"
+            "s.src='http://127.0.0.1:%d/recorder.js?t='+Date.now();"
+            "s.onerror=function(){alert('Recorder not reachable on port %d.')};"
+            "document.head.appendChild(s)})()" % (port, port))
 
 
 PAGE = """<!doctype html>
@@ -105,6 +120,9 @@ PAGE = """<!doctype html>
 __ERROR__
 <div class="row"><a class="bm" href="__HREF__">Banner Plus (dev)</a>
 <div class="meta">__SIZE__, rebuilt from <code>src/</code> on every click.</div></div>
+<div class="row"><a class="bm" href="__REC__">Record Banner (dev)</a>
+<div class="meta">Click on a Banner page to log what it asks Banner for: paths and
+field names, no values. Click again on each new page.</div></div>
 <h2>Sources</h2>
 <table>__ROWS__</table>
 <footer>Serving 127.0.0.1 only, with no-store and a per-click cache-buster.
@@ -134,13 +152,14 @@ def build_index(port: int) -> bytes:
                        age(time.time() - p.stat().st_mtime)))
 
     html = (PAGE.replace("__HREF__", dev_bookmarklet(port).replace("&", "&amp;"))
+                .replace("__REC__", recorder_bookmarklet(port).replace("&", "&amp;"))
                 .replace("__ERROR__", error)
                 .replace("__SIZE__", size)
                 .replace("__ROWS__", "\n".join(rows)))
     return html.encode("utf-8")
 
 
-def make_handler(port: int):
+def make_handler(port: int, record_to: Path):
     class Handler(http.server.BaseHTTPRequestHandler):
         def send_body(self, body: bytes, ctype: str, code: int = 200):
             self.send_response(code)
@@ -169,7 +188,26 @@ def make_handler(port: int):
                 # Framed by the console and the GPA bridge, from beside the
                 # console.js that loaded them; see build.py.
                 return self.send_body(HUB.encode("utf-8"), "text/html; charset=utf-8")
+            if path == "/recorder.js":
+                return self.send_body((HERE / "recorder.js").read_bytes(),
+                                      "application/javascript; charset=utf-8")
             self.send_body(b"not found", "text/plain", 404)
+
+        def do_POST(self):
+            if self.path.split("?")[0] != "/record":
+                return self.send_body(b"not found", "text/plain", 404)
+            n = int(self.headers.get("Content-Length") or 0)
+            try:
+                rec = json.loads(self.rfile.read(n) or b"{}")
+            except ValueError:
+                return self.send_body(b"not json", "text/plain", 400)
+            rec["at"] = time.strftime("%H:%M:%S")
+            rec["from"] = self.headers.get("Origin", "")
+            with record_to.open("a") as f:
+                f.write(json.dumps(rec) + "\n")
+            sys.stderr.write("  recorded %s %s %s\n" % (rec.get("method"), rec.get("path"),
+                                                        rec.get("status")))
+            self.send_body(b"ok", "text/plain")
 
         def log_message(self, fmt, *args):
             # One readable line per fetch: seeing the click land is the point.
@@ -182,11 +220,16 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--record-to", type=Path,
+                    default=Path(tempfile.gettempdir()) / "banner-plus-shapes.jsonl",
+                    help="where the recorder's lines go (default: %(default)s)")
     args = ap.parse_args()
 
-    srv = http.server.ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(args.port))
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", args.port),
+                                          make_handler(args.port, args.record_to))
     print(f"bundling {HERE / 'src'}")
     print(f"open     http://127.0.0.1:{args.port}/   and drag the dev link to your bookmarks bar")
+    print(f"record   {args.record_to}")
     print("ctrl-c to stop\n")
     try:
         srv.serve_forever()
