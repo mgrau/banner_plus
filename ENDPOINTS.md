@@ -58,6 +58,12 @@ the code is the academic year: `202610` is Fall 2026, and Spring 2027 and Summer
 2027 share the `2026` prefix. Everything else is a part-of-term — eight-week
 sessions, medical-school terms — and there are many.
 
+The list is newest first, and Banner adds a term months before it starts, so
+the newest is rarely the one being taught. It carries no dates either. The
+console opens on the first standard term not yet over, taking Spring to end on
+15 May, Summer on 15 August and Fall on 20 December, a few days after exams:
+`TERM_ENDS` in `30-banner.js`, to change for a campus whose calendar differs.
+
 ### Rosters
 
 `ssb/classList/classListDetail?term=&crn=&filterText=&sortColumn=studentName&sortDirection=asc&max=500&offset=0`
@@ -291,9 +297,48 @@ does read are in their own section above.
 **A different origin.** A page on the faculty host cannot read any of these:
 no CORS headers, so the browser fetches the response and then refuses to hand it
 to JavaScript. `postMessage` from a script running on this host is the only way
-across, and it costs a second click on a second window — which is why the
-console links out to the profile instead and computes its own GPA from the
-grades it can see.
+across, and it costs a second click on a second window. The console now takes
+it: clicked in a student-host tab, the bookmark is a bridge that reads
+`viewGPAHoursList` for the console in a faculty-host tab. The two find each
+other whichever was clicked first: directly when one tab opened the other, and
+otherwise through `hub.html`, framed from the Pages site in both tabs, whose
+copies share a `BroadcastChannel`. That works because the two hosts are one
+site, `odu.edu`: browsers keep a framed page's channel apart by the site of
+the tab around it. See `bookmarklet/src/65-bridge.js`.
+
+**No page here for faculty until a student is picked.** `ssb/studentProfile`
+with no `studentId` forwards to `classListApp/classListPage` on this host, with
+no `/ssb`: the class list Banner would show in Faculty Self-Service, which this
+host does not have. It answers "Sorry, This page is not available." That is
+where the bookmark clicked anywhere but Banner lands, and the bridge runs
+there regardless; before its first question it fetches that student's profile
+page, the way the console fetches the class-list page (see the class list
+above), for the session and the token.
+
+Four things about that are **not yet confirmed against ODU**:
+
+- **That Banner lets the hub in.** A `Content-Security-Policy` with
+  `frame-src` or `child-src` would keep the Pages site out of Banner's frames,
+  and the tabs would then meet only when one opened the other. The faculty
+  host evidently runs scripts from Pages, since `console.js` works there, which
+  makes a rule against its frames unlikely but does not rule it out; both
+  hosts' response headers would settle it. (The direct link fails differently:
+  a strict `Cross-Origin-Opener-Policy` sets `window.opener` to null. The hub
+  does not depend on that.)
+- **That `studentId` alone picks the student.** If the endpoint answered for
+  whoever the profile tab last opened, every student would show that one's
+  GPA. A row that names a different `bannerId` or `studentId` is refused, but a
+  payload that names nobody cannot be checked that way, so compare two
+  students whose GPAs you know differ.
+- **What the GPA wants first.** On the class-list app, `courseList` answers
+  401 until the page has been served. `viewGPAHoursList` is narrower: the
+  profile session holds one student, the last profile served. In a real
+  session the first student answered and every later one was a 404. So before
+  a question about a new student, the bridge fetches that student's profile.
+  That this is enough for every student has not been seen yet.
+- **The payload's field names.** Not recorded yet, so the console shows each
+  row under Banner's own labels rather than guessing which field is the GPA.
+  Record them (names only, values redacted) and pick one.
 
 | Endpoint | Keyed by | Returns |
 |---|---|---|

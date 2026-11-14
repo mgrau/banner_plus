@@ -187,6 +187,97 @@ function majorHistoryBox(s) {
   return box;
 }
 
+/* The registrar's GPA, under the one computed here, so the two can be read
+ * against each other. It comes through the bridge (65-bridge.js); without a
+ * connected tab the box offers Fetch, which opens the tab the bridge runs in.
+ *
+ * Shown as Banner labels it until the real field names are known — see
+ * fetchOfficialGPA. Figures already fetched stay on screen if the tab goes
+ * away, because they were true a minute ago and refetching them costs Banner
+ * a request. */
+var gpaShown = null;           // { s, box } for the student on screen
+
+function officialGPABox(s) {
+  var box = el("div", { style: { marginTop: "12px", fontSize: "12px" } });
+  gpaShown = { s: s, box: box };
+  drawOfficialGPA(box, s);
+  return box;
+}
+
+function drawOfficialGPA(box, s) {
+  box.innerHTML = "";
+  box.appendChild(el("div", { text: "Registrar's GPA", style: {
+    fontWeight: "700", fontSize: "12px", margin: "0 0 4px", color: "#41556f" } }));
+
+  if (!bridgeReady() && !gpaKnown[s.uin]) {
+    box.appendChild(fetchRow(box, s, "then click Banner Plus in the tab it opens"));
+    return;
+  }
+
+  // A tab coming or going redraws the box while a question is out; the
+  // answer to the old one then has nowhere to go.
+  var body = el("div", { text: "Asking Banner…", style: { color: "#6b7280", fontSize: "11.5px" } });
+  box.appendChild(body);
+  fetchOfficialGPA(s, curTerm()).then(function (rows) {
+    if (!box.contains(body)) return;
+    body.innerHTML = "";
+    body.style.color = "#16191f";
+    body.style.fontSize = "12px";
+    if (!rows.length) {
+      body.textContent = "Banner has no GPA on file for this student.";
+      body.style.color = "#9aa1ab";
+      return;
+    }
+    rows.forEach(function (r) {
+      var line = el("div", { style: { padding: "1px 0", lineHeight: "1.5" } });
+      r.forEach(function (kv, i) {
+        if (i) line.appendChild(el("span", { text: " · ", style: { color: "#c2c8d2" } }));
+        line.appendChild(el("span", { text: kv[0] + " ", style: { color: "#6b7280" } }));
+        line.appendChild(el("span", { text: kv[1], style: { fontWeight: "600" } }));
+      });
+      body.appendChild(line);
+    });
+    box.appendChild(el("div", {
+      text: "As Banner labels it, from the student profile, through the tab you connected.",
+      style: { fontSize: "10.5px", color: "#9aa1ab", marginTop: "2px", lineHeight: "1.4" } }));
+  }, function (e) {
+    if (!box.contains(body)) return;
+    body.textContent = "Banner wouldn't answer: " + (e.message || e);
+    body.style.color = "#b3261e";
+    box.appendChild(fetchRow(box, s, ""));
+  });
+}
+
+/* Fetch does whatever getting the figure takes. With a tab connected that is
+ * the question again; without one, it opens the tab the bridge runs in. The
+ * bookmark click there stays the user's, because no page can make it — see
+ * 65-bridge.js. */
+function fetchRow(box, s, hint) {
+  var row = el("div", { style: { display: "flex", alignItems: "center", gap: "8px",
+    marginTop: "2px" } });
+  var b = btn("Fetch");
+  b.title = "Opens this student's Banner profile in a new tab. Click Banner Plus " +
+    "there, and that tab fetches the registrar's GPA for every student you open " +
+    "while it stays open. Or click Banner Plus in any Student Self-Service tab: " +
+    "it finds this console by itself. If the bookmark there only offers to open " +
+    "Faculty Self-Service, it was dragged before this existed: drag it again " +
+    "from the install page.";
+  var note = el("span", { text: hint, style: { color: "#9aa1ab", fontSize: "11.5px" } });
+  b.onclick = function () {
+    if (bridgeReady()) { drawOfficialGPA(box, s); return; }
+    openBridgeTab(profileURL(s.uin, curTerm()));
+    note.textContent = "Now click Banner Plus in that tab.";
+  };
+  row.appendChild(b);
+  row.appendChild(note);
+  return row;
+}
+
+// A tab connecting or going away redraws the box for whoever is on screen.
+onBridge(function () {
+  if (gpaShown && document.contains(gpaShown.box)) drawOfficialGPA(gpaShown.box, gpaShown.s);
+});
+
 function focusStudent(s) {
   S.focus = s;
   renderMain();
@@ -267,20 +358,20 @@ function focusStudent(s) {
     out.push(el("div", { text: "Transcript", style: {
       fontWeight: "700", fontSize: "12px", margin: "14px 0 4px", color: "#41556f" } }));
     out.push(transcriptGrid(s));
-    /* The only GPA here is the one these grades add up to. Banner's official
-     * number lives on the student host, which is a different origin and
-     * unreadable from this page; the profile button at the top is the way to
-     * it. */
+    /* The GPA these grades add up to, and so only approximate; why is in the
+     * tooltip. The registrar's own figure follows it, through the bridge. */
     var all = gpaOf(s.history);
     if (all) {
       out.push(el("div", { text: "Cumulative GPA " + all.gpa.toFixed(2) + " over " + all.hours + " credits",
         style: { borderTop: "2px solid #222", marginTop: "6px", paddingTop: "4px",
                  fontSize: "12px", fontWeight: "600" } }));
       out.push(el("div", {
-        text: "Computed from the letter grades above — blind to repeats, grade " +
-              "forgiveness and transfer credit, so it can disagree with Banner.",
+        text: "Approximate — computed from letter grades above",
+        title: "Blind to repeats, grade forgiveness and transfer credit, so it can " +
+               "disagree with the registrar.",
         style: { fontSize: "10.5px", color: "#9aa1ab", marginTop: "2px", lineHeight: "1.4" } }));
     }
+    if (s.uin) out.push(officialGPABox(s));
 
     showRight(out);
   }).catch(function (e) {

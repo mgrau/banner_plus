@@ -34,6 +34,7 @@ import sys
 import tempfile
 import threading
 from pathlib import Path
+from urllib.parse import unquote
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import stub  # noqa: E402
@@ -295,6 +296,127 @@ CHECKS = [
       return true;
     """),
 
+    ("the registrar's GPA comes through a bridge tab on the student host", r"""
+      await openFall101();
+      click($$("img", main())[0].parentNode);                  // Jane
+      const head = await waitFor("the registrar's GPA box", () =>
+        byText("div", "Registrar's GPA", rightPane()));
+      const fetchBtn = byText("button", "Fetch", head.parentNode);
+      if (!fetchBtn) return "no Fetch button: " + text(head.parentNode);
+
+      // Fetch opens the profile tab, and the bookmark run there is the bridge.
+      click(fetchBtn);
+      await waitFor("Jane's figures, through the bridge", () =>
+        /gpa 3\.42/.test(text(rightPane())), 10000);
+      const box = byText("div", "Registrar's GPA", rightPane()).parentNode;
+      if (/01234567/.test(text(box))) return "the student's ID is shown as a figure: " + text(box);
+      if (byText("button", "Fetch", box)) return "Fetch is still offered beside the figures";
+
+      // Another student, through the same tab, with no second click.
+      click($$("img", main()).filter((i) => /John Smith/.test(text(i.parentNode)))[0].parentNode);
+      await waitFor("John's figures", () => /gpa 2\.87/.test(text(rightPane())), 10000);
+
+      const hits = await (await fetch("/hits")).json();
+      if (!hits.includes("student:studentProfile/viewGPAHoursList"))
+        return "the figures did not come from the student host: " + hits.join(", ");
+      return true;
+    """),
+
+    ("started on the student host, the bridge opens the console already connected", r"""
+      // The stub's student page ran the bookmark first, and that opened this tab.
+      if (!window.opener) return "this console wasn't opened by the bridge";
+      await openFall101();
+      click($$("img", main())[0].parentNode);                  // Jane
+      await waitFor("Jane's figures, without Fetch", () =>
+        /gpa 3\.42/.test(text(rightPane())), 10000);
+      return true;
+    """),
+
+    ("clicked anywhere but Banner, it opens a student tab whose bridge opens the console", r"""
+      // Clicked on a page that isn't Banner's, the bookmark opened a student
+      // tab; clicked there, it was the bridge, and the bridge opened this tab.
+      // With no student picked, Banner has no page there for faculty, so the
+      // bridge ran on "not available" and has to wake the profile up itself.
+      if (!window.opener) return "this console wasn't opened by the bridge";
+      await openFall101();
+      click($$("img", main())[0].parentNode);                  // Jane
+      await waitFor("Jane's figures, without Fetch", () =>
+        /gpa 3\.42/.test(text(rightPane())), 10000);
+      // And the next student: the profile woken up for Jane knows only Jane.
+      click($$("img", main()).filter((i) => /John Smith/.test(text(i.parentNode)))[0].parentNode);
+      await waitFor("John's figures", () => /gpa 2\.87/.test(text(rightPane())), 10000);
+      // One tab each, and the page it was clicked on left as it was, in a tab
+      // of its own: the opener of the tab that opened this one.
+      const first = window.opener.opener;
+      if (!first || first.closed) return "the page it was clicked on was replaced";
+      const navs = await (await fetch("/navs")).json();
+      const want = ["other:/elsewhere", "studentssb:/StudentSelfService/ssb/studentProfile",
+                    "studentssb:/StudentSelfService/classListApp/classListPage",
+                    "facultyssb:/FacultySelfService/ssb/classListApp/classListPage"];
+      if (navs.join(" ") !== want.join(" ")) return "pages loaded: " + navs.join(", ");
+      return true;
+    """),
+
+    ("a bridge clicked on its own finds the console already open", r"""
+      // Run again in a tab the bridge opened, this check has failed already.
+      if (window.opener) return "the bridge opened a console of its own instead of finding this one";
+      await openFall101();
+      click($$("img", main())[0].parentNode);                  // Jane
+      const head = await waitFor("the registrar's GPA box", () =>
+        byText("div", "Registrar's GPA", rightPane()));
+      if (!byText("button", "Fetch", head.parentNode)) return "connected before any bridge ran";
+
+      // A student tab opened by hand: no opener, and nothing linking it to
+      // this one, so only the hub can bring them together.
+      window.open(location.origin.replace("facultyssb.", "studentssb.") +
+                  "/StudentSelfService/ssb/studentProfile", "_blank", "noopener");
+      await waitFor("Jane's figures, without Fetch", () =>
+        /gpa 3\.42/.test(text(rightPane())), 10000);
+
+      // Having found this console, it opened no other. A bridge decides within
+      // a few seconds of starting, so wait those out before counting.
+      await sleep(2500);
+      const navs = await (await fetch("/navs")).json();
+      const consoles = navs.filter((n) => /^facultyssb:/.test(n));
+      if (consoles.length !== 1) return "Faculty Self-Service was opened " + consoles.length + " times";
+      return true;
+    """),
+
+    ("a console clicked on its own finds the bridge already open", r"""
+      // First run in the tab the bridge opened, which is linked to it. Open
+      // another console that nothing links to, and let that one report.
+      if (!/[?&]unlinked/.test(location.search)) {
+        window.open(location.pathname + "?unlinked", "_blank", "noopener");
+        return new Promise(() => {});
+      }
+      if (window.opener) return "the second console has an opener after all";
+      await openFall101();
+      click($$("img", main())[0].parentNode);                  // Jane
+      await waitFor("Jane's figures, without Fetch", () =>
+        /gpa 3\.42/.test(text(rightPane())), 10000);
+      return true;
+    """),
+
+    ("the bridge answers nobody but the console", r"""
+      await booted();
+      const report = new Promise((res) => addEventListener("message", (ev) => {
+        if (ev.data && ev.data.otherPage) res(ev.data);
+      }));
+      window.open(location.origin.replace("facultyssb.", "other.") + "/other");
+      // The other page runs in a background tab, where its timers are slowed.
+      const r = await Promise.race([report, sleep(25000).then(() => null)]);
+      if (!r) return "the other page never reported back";
+      const hits = await (await fetch("/hits")).json();
+      if (!hits.includes("student:console.js"))
+        return "the bridge never loaded there, so this proved nothing";
+      if (r.hellos) return "the bridge said hello to a page that isn't Banner Plus";
+      if (r.answers) return "the bridge answered somebody else's page " + r.answers + " times";
+      if (r.heard) return "the hub handed somebody else's page " + r.heard + " messages";
+      if (hits.some((h) => /viewGPAHoursList/.test(h)))
+        return "the bridge asked Banner on somebody else's behalf";
+      return true;
+    """),
+
     ("the two exit links sit above the record, not below it", r"""
       await openFall101();
       click($$("img", main())[0].parentNode);
@@ -380,9 +502,10 @@ CHECKS = [
       if (/empty/i.test(d)) return "the empty-section toggle belongs in the sidebar now";
       if (!/Reset table column widths/.test(d)) return "no width reset";
       /* The link home is worked out from where console.js was loaded, so under
-         test it points at the stub's own root — which is the whole point: a
-         fork's copy points at the fork's page, not at mine. */
-      const home = drawer().querySelector('a[href^="http://127.0.0.1"]');
+         test it points at the stub's stand-in for Pages — which is the whole
+         point: a fork's copy points at the fork's page, not at mine. */
+      const src = document.querySelector('script[src*="/console.js"]').src;
+      const home = drawer().querySelector('a[href="' + src.replace(/[^/]*$/, "") + '"]');
       if (!home) return "no link to the product page: " +
         $$("a", drawer()).map((a) => a.href).join("|");
       if (!/What it does/.test(text(home))) return "the link says: " + text(home);
@@ -650,7 +773,7 @@ CHECKS = [
     """),
 ]
 
-# The last three checks reach into the console's own scope, which a bookmarklet
+# These checks reach into the console's own scope, which a bookmarklet
 # does not expose. They run with the IIFE opened up; see harness().
 INTERNAL = {"printed photo roster fits and carries a legend",
             "printed free-time sheet names who was left out",
@@ -659,9 +782,17 @@ INTERNAL = {"printed photo roster fits and carries a legend",
 
 # Checks that start somewhere other than the class-list page. The default is
 # the class list because that is where most people click it; /menu is the case
-# that used to need a manual visit to Faculty Class List first.
+# that used to need a manual visit to Faculty Class List first, the student
+# profile is where the bridge is clicked before the console, and /elsewhere is
+# a page that isn't Banner's at all.
 START_PAGE = {"clicked away from the class list, it wakes the app up":
-              "/FacultySelfService/ssb/menu"}
+              "/FacultySelfService/ssb/menu",
+              "started on the student host, the bridge opens the console already connected":
+              "/StudentSelfService/ssb/studentProfile",
+              "a console clicked on its own finds the bridge already open":
+              "/StudentSelfService/ssb/studentProfile",
+              "clicked anywhere but Banner, it opens a student tab whose bridge opens the console":
+              "/elsewhere"}
 
 
 def build() -> str:
@@ -674,6 +805,22 @@ def build() -> str:
     sys.path.insert(0, str(ROOT / "bookmarklet"))
     import build as builder
     return builder.bundle()
+
+
+def bookmark(student: str) -> str:
+    """The bookmark itself, as clicked: the loader build.py puts on the install
+    page, with the stub's student host in place of ODU's."""
+    sys.path.insert(0, str(ROOT / "bookmarklet"))
+    import build as builder
+    href = builder.loader(f"http://pages.localhost:{PORT}", "console.js", student=student)
+    return unquote(href[len("javascript:"):])
+
+
+def hub() -> str:
+    """hub.html, which the console frames from beside console.js."""
+    sys.path.insert(0, str(ROOT / "bookmarklet"))
+    import build as builder
+    return builder.HUB
 
 
 def harness(js: str, internal: bool) -> str:
@@ -722,10 +869,14 @@ def run_one(srv, url: str, timeout: int = 45) -> tuple[bool, str]:
     srv.done.clear()
     srv.result = None
     srv.warm = False           # every check gets a cold Banner session
+    srv.student_warm = None
     srv.hits.clear()
+    srv.navs.clear()
     profile = Path(tempfile.mkdtemp(prefix="bp-chrome-"))
     proc = subprocess.Popen(
-        [CHROME, "--headless=new", "--disable-gpu", "--no-sandbox",
+        # Popups are allowed because the bridge lives in one: a check's click is
+        # synthetic, and the blocker would otherwise eat the tab Fetch opens.
+        [CHROME, "--headless=new", "--disable-gpu", "--no-sandbox", "--disable-popup-blocking",
          "--no-first-run", "--disable-extensions", "--window-size=1400,900",
          f"--user-data-dir={profile}", url],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -755,9 +906,13 @@ def main() -> int:
         return 2
 
     js = build()
-    srv = stub.serve(PORT, js, verbose=args.verbose)
+    srv = stub.serve(PORT, js, hub(), verbose=args.verbose)
+    srv.bookmark = bookmark(f"http://studentssb.odu.localhost:{PORT}"
+                            "/StudentSelfService/ssb/studentProfile")
     threading.Thread(target=srv.serve_forever, daemon=True).start()
-    root = f"http://127.0.0.1:{PORT}"
+    # Named like ODU's hosts: the student host is another origin on the same
+    # site, at studentssb.odu.localhost; see stub.py.
+    root = f"http://facultyssb.odu.localhost:{PORT}"
     default_page = "/FacultySelfService/ssb/classListApp/classListPage"
 
     checks = [(n, s) for n, s in CHECKS if not args.only or args.only in n]
@@ -770,7 +925,12 @@ def main() -> int:
                 script = ("const {S, el, hydrate, curTerm, photoRosterDoc, freeTimeDoc, plannerLink} "
                           "= window.__bp;\n") + script
             srv.check_js = check_script(script)
-            ok, why = run_one(srv, root + START_PAGE.get(name, default_page))
+            page = START_PAGE.get(name, default_page)
+            # A check starts on the host its page belongs to: Faculty or Student
+            # Self-Service, or, for anything else, a host that isn't Banner's.
+            host = ("facultyssb" if page.startswith("/FacultySelfService") else
+                    "studentssb" if page.startswith("/StudentSelfService") else "other")
+            ok, why = run_one(srv, root.replace("facultyssb.", host + ".") + page)
             print(("  ok   " if ok else "  FAIL ") + name + ("" if ok else "\n         " + why))
             if not ok:
                 failed.append(name)

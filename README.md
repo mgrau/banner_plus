@@ -8,8 +8,9 @@ opening twelve schedules and comparing them by hand. None of that is missing
 data — it is missing *joins*, and a page running inside Banner can do them.
 
 Banner Plus is a bookmarklet. Click it on any Faculty Self-Service page and it
-opens a workspace over Banner, using the session you are already signed in to.
-Nothing is installed and nothing is uploaded.
+opens a workspace over Banner, using the session you are already signed in to;
+click it anywhere else and it opens Banner for you. Nothing is installed and
+nothing is uploaded.
 
 **[Install it →](https://mgrau.github.io/banner_plus/)**
 
@@ -71,14 +72,49 @@ one it does not know — change either end and change the other.
 
 ### About GPA
 
-The only GPA shown is the one the transcript's letter grades add up to, and the
+The GPA under the transcript is the one its letter grades add up to, and the
 console says so where it shows it. It is blind to repeats, grade forgiveness and
 transfer credit, so it can disagree with the registrar.
 
 The official number lives on the student self-service host, which is a different
 origin with no CORS headers — a page on the faculty host cannot read it, and no
-amount of cleverness changes that. So the student pane links out to the profile
-instead, which is one click and always right.
+amount of cleverness inside that page changes that. What works is running on
+both hosts: clicked in a Student Self-Service tab, the bookmark becomes a
+bridge, a small strip that reads the registrar's GPA for the console, for every
+student you open while it stays open.
+
+Click the bookmark in a Faculty Self-Service tab and in a Student Self-Service
+tab, in either order, however the tabs were opened, and they find each other.
+Two shortcuts open the second tab for you:
+
+- **Start anywhere, or on the student side.** Clicked anywhere but Banner, the
+  bookmark opens Student Self-Service in a new tab. Banner has no page there
+  for faculty until a student is picked, so the tab says "Sorry, This page is
+  not available." Click the bookmark there anyway: with no console open, it is
+  the bridge, and opens Faculty Self-Service; click it there and the console
+  comes up connected, with nothing to switch back to. (One tab at a time,
+  because Chrome allows one new tab per click. If Chrome blocks Faculty
+  Self-Service anyway, click the bookmark again in the student tab.)
+- **Start in the console.** **Fetch**, under Registrar's GPA, opens the
+  student's profile in a new tab; click the bookmark there, then switch back.
+
+Either way the second tab needs its own click. A page can open a tab on another
+origin but never run anything in it — the rule that keeps any website from
+scripting your other tabs — so the bookmark click there is the only way in,
+short of an extension. It is asked for once, not once per student.
+
+The tabs talk two ways at once: by `postMessage` when one opened the other, and
+otherwise through a hub — `hub.html`, published beside `console.js` and framed
+out of sight in both tabs — whose copies share a `BroadcastChannel`. The hub is
+a static page; nothing passes through GitHub, and the messages stay in the
+browser.
+
+The bridge answers Faculty Self-Service and nothing else, going by the origin
+the browser reports rather than anything a message claims. It asks for a fixed
+list of things by name, one request at a time, and passes a refusal back
+rather than retrying it. Without it, the pane offers Fetch, and the profile
+link is still one click and always right. `bookmarklet/src/65-bridge.js` has
+the details.
 
 ## The code
 
@@ -96,6 +132,7 @@ function — so an editor can parse one without the rest, but only the bundle ru
 | `50-print` | the photo roster and free-time sheets |
 | `55-planner` | building a semester-planner import link |
 | `60-groups` | artificial classes, stored in localStorage |
+| `65-bridge` | on the student host, the whole program: reads the registrar's GPA for the console |
 | `70-shell` | the overlay: toolbar, progress, drawer, panes |
 | `80-sidebar` | sections and groups, and the group editor |
 | `90-roster` | the middle pane, as photos or as a table |
@@ -107,6 +144,9 @@ function — so an editor can parse one without the rest, but only the bundle ru
 
 Files 10–60 touch no DOM and 70 onwards draw. The split falls there because a
 change to how Banner answers should never be a change to how anything looks.
+It is also where the bundle stops on the student host: `build.py` writes one
+line at that seam, and there the program is the bridge in `65-bridge`, with
+none of the console drawn.
 
 ## Working on it
 
@@ -165,12 +205,17 @@ synchronizer token. One check therefore starts on a different Banner page
 entirely, which is the case that used to need a manual visit to Faculty Class
 List first.
 
+It keeps two things as ODU has them, for the GPA bridge: Faculty and Student
+Self-Service are different origins on one site, and `console.js` comes from a
+third host standing in for GitHub Pages. And its pages believe it is
+12 November 2026, so the console opens on Fall 2026 whenever the suite runs.
+
 You can also poke at it by hand:
 
 ```bash
 python3 bookmarklet/build.py      # the stub serves docs/console.js
 python3 test/stub.py
-open http://127.0.0.1:8801/FacultySelfService/ssb/classListApp/classListPage
+open http://facultyssb.odu.localhost:8801/FacultySelfService/ssb/classListApp/classListPage
 ```
 
 ## Endpoints, and porting this elsewhere

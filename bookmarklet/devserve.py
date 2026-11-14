@@ -23,6 +23,12 @@ http://127.0.0.1 — it loads. No self-signed certificate needed.
 Use 127.0.0.1 rather than localhost: on some machines localhost resolves to ::1
 first, and a server bound only to IPv4 is then unreachable.
 
+Chrome adds one gate of its own: a public site may not load anything from this
+machine until you allow it (Local Network Access), and the permission is per
+site, so Faculty and Student Self-Service each ask once. Until then the request
+never reaches this server. The published bookmark loads from Pages and never
+asks.
+
 Responses carry no-store and the bookmarklet appends a timestamp, so an edit is
 live on the next click rather than after a cache expires.
 
@@ -38,7 +44,6 @@ import sys
 import time
 import traceback
 from pathlib import Path
-from urllib.parse import quote
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -46,20 +51,16 @@ sys.path.insert(0, str(HERE))
 # Reuse the published bundler and encoder rather than repeating either. Leaving
 # "&" raw once corrupted a shipped bookmarklet; there is no reason to risk it
 # twice, and a dev bundle assembled differently from the real one is a trap.
-from build import _SAFE, bundle, fragments  # noqa: E402
+from build import HUB, bundle, fragments, loader  # noqa: E402
 
 
 def dev_bookmarklet(port: int) -> str:
-    js = (
-        "(function(){"
-        "var d=document,s=d.createElement('script');"
-        "s.src='http://127.0.0.1:%d/console.js?v='+Date.now();"
-        "s.onerror=function(){alert('Dev server not reachable on port %d \\u2014 "
-        "is devserve.py still running?');};"
-        "d.body.appendChild(s);"
-        "})();" % (port, port)
-    )
-    return "javascript:" + quote(js, safe=_SAFE)
+    # The published bookmark, loading from here: clicked anywhere but Banner it
+    # opens Student Self-Service, just as the real one does.
+    return loader("http://127.0.0.1:%d" % port, "console.js",
+                  unreachable="Dev server not reachable on port %d \\u2014 "
+                              "is devserve.py still running, and has Chrome been "
+                              "allowed to reach this computer from this site?" % port)
 
 
 PAGE = """<!doctype html>
@@ -164,6 +165,10 @@ def make_handler(port: int):
                     msg = traceback.format_exc().replace("`", "'")
                     js = "alert('Banner Plus build failed:\\n\\n' + %r);" % msg
                 return self.send_body(js.encode("utf-8"), "application/javascript; charset=utf-8")
+            if path == "/hub.html":
+                # Framed by the console and the GPA bridge, from beside the
+                # console.js that loaded them; see build.py.
+                return self.send_body(HUB.encode("utf-8"), "text/html; charset=utf-8")
             self.send_body(b"not found", "text/plain", 404)
 
         def log_message(self, fmt, *args):

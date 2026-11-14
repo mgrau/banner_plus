@@ -28,6 +28,8 @@
  *   50-print        the photo roster and free-time sheets
  *   55-planner      building a semester-planner import link
  *   60-groups       artificial classes, stored in localStorage
+ *   65-bridge       on the student host, the whole program: reads the
+ *                   registrar's GPA for the console in the other tab
  *   70-shell        the overlay: toolbar, progress, drawer, panes
  *   80-sidebar      sections and groups, and the group editor
  *   90-roster       the middle pane, as photos or as a table
@@ -39,9 +41,13 @@
  *
  * Files 10-60 touch no DOM and 70 onwards draw; the split falls there because
  * a change to how Banner answers should never be a change to how anything
- * looks. Order matters only for the files that have side effects: 20 reads the
- * synchronizer token, 30 asks Banner where the student host is, 70 puts the
- * window on screen, and 130 starts the first fetch.
+ * looks. 65 sits on the line: clicked on the student host, the bundle runs the
+ * data layer and the bridge, then stops at the seam build.py writes between
+ * 65 and 70, so none of the console is drawn there. Order matters only for
+ * the files that have side effects: 10 reads where this script came from, 20
+ * reads the synchronizer token, 30 asks Banner where the student host is, 65
+ * starts listening for a bridge, 70 puts the window on screen, and 130 starts
+ * the first fetch.
  *
  * ENDPOINTS
  *

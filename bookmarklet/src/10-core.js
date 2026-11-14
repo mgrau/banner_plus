@@ -9,6 +9,21 @@
 
 var DEBUG = /[?&]debug/.test(location.href);
 
+/* Where this console came from — the page the bookmark was dragged off, and
+ * the site that serves hub.html beside it (65-bridge).
+ *
+ * Read off this script's own URL rather than written down. The bundle is
+ * served as <base>/console.js, so the script element that loaded it already
+ * knows the base, and a fork's copy then points at the fork's page instead of
+ * at mine. currentScript is only readable while the script is executing, which
+ * is now: this line runs at load, on purpose.
+ */
+var HOME = "https://mgrau.github.io/banner_plus/";
+try {
+  var mySrc = document.currentScript && document.currentScript.src;
+  if (mySrc) HOME = mySrc.replace(/[?#].*$/, "").replace(/[^/]*$/, "");
+} catch (e) {}
+
 var DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 var DAY_ABBR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 var DAY_LETTER = ["M", "T", "W", "R", "F", "S", "U"];

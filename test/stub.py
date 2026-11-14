@@ -6,14 +6,14 @@ bookmarklet is clicked on. Started by run.py; runnable on its own if you want
 to poke at the console by hand:
 
     python3 test/stub.py --port 8801
-    open http://127.0.0.1:8801/FacultySelfService/ssb/classListApp/classListPage
+    open http://facultyssb.odu.localhost:8801/FacultySelfService/ssb/classListApp/classListPage
 
 The data is invented. Nothing here touches a real Banner and nothing here is a
 real student.
 
 WHAT IT DELIBERATELY GETS WRONG
 
-Three things, because the console has been broken by all three:
+Four things, because the console has been broken by all four:
 
   * courseList answers under "result", not "courseList", and uses subjectCode
     where other endpoints use subject.
@@ -23,6 +23,32 @@ Three things, because the console has been broken by all three:
     has been served, and only that page carries a synchronizer token — so a
     console clicked anywhere else in Faculty Self-Service has to wake the app
     up before it can ask anything. /menu is that "anywhere else".
+  * Student Self-Service has no page for faculty until a student is picked.
+    The profile with no studentId forwards to the class list Banner would show
+    in Faculty Self-Service, which this host does not have, so the bookmark
+    clicked anywhere else lands on "Sorry, This page is not available." That
+    page carries no token, and the GPA answers 401 until a profile has been
+    served, so a bridge clicked there has to wake the profile up first. And
+    the profile holds one student: asked about anyone else, the GPA is a 404.
+
+HOSTS
+
+All on one port, told apart by name; Chrome resolves anything under localhost
+to loopback by itself.
+
+  facultyssb.odu.localhost   Faculty Self-Service
+  studentssb.odu.localhost   Student Self-Service
+  other.odu.localhost        not Banner: somebody else's page, for checking
+                             that the bridge will not answer it, and a page
+                             to click the bookmark on
+  pages.localhost            where console.js and hub.html come from
+
+The first three are different origins on one site, as ODU's hosts are. The
+student host sends no CORS headers, so the only way to its GPA is the bridge.
+The fourth stands in for GitHub Pages, a site of its own: the hub works only
+because a page framed in tabs of one site shares a BroadcastChannel across
+them, and a stub that served the hub from the page's own host would test
+nothing of the kind.
 """
 
 from __future__ import annotations
@@ -187,18 +213,97 @@ COURSE_DETAIL = {
     },
 }
 
+# pidm -> the registrar's figures, as viewGPAHoursList might send them. The
+# field names are invented: the real ones have not been recorded yet (see
+# ENDPOINTS.md). The console shows rows as Banner labels them, so these only
+# have to be plausible, not right.
+GPA = {
+    "900001": [{"bannerId": "01234567", "level": "Undergraduate", "gpaType": "Institution",
+                "hoursEarned": "11", "gpa": "3.42"},
+               {"bannerId": "01234567", "level": "Undergraduate", "gpaType": "Overall",
+                "hoursEarned": "41", "gpa": "3.38"}],
+    "900002": [{"bannerId": "01234568", "level": "Undergraduate", "gpaType": "Overall",
+                "hoursEarned": "96", "gpa": "2.87"}],
+}
+
 # A 1x1 PNG. Enough for the console to accept as an image and draw.
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
 
-def page(title: str, token: str | None, scripts: bool = True) -> str:
+def page(title: str, token: str | None, pages: str, scripts: bool = True) -> str:
     return ("<!doctype html><html><head><meta charset=\"utf-8\">" +
             (f'<meta name="synchronizerToken" content="{token}">' if token else "") +
             f"<title>{title}</title></head>"
             f"<body><h1>Banner (stub)</h1><div id=\"page\">{title}</div>" +
-            ('<script src="/console.js"></script><script src="/check.js"></script>'
+            (f'<script src="{pages}/console.js"></script><script src="/check.js"></script>'
              if scripts else "") +
             "</body></html>")
+
+
+def not_available_page(pages: str) -> str:
+    """What Student Self-Service shows faculty with no student picked: an error
+    page, with no token. The bridge is clicked here when the bookmark was
+    clicked anywhere else first; the script stands in for that click."""
+    return ('<!doctype html><html><head><meta charset="utf-8">'
+            "<title>Page Not Found</title></head>"
+            '<body><h1>Banner (stub)</h1><div id="page">Sorry, This page is not available.</div>'
+            f'<script src="{pages}/console.js"></script></body></html>')
+
+
+def student_page(pages: str) -> str:
+    """Student Self-Service, as the bookmark finds it there. The console
+    script stands in for the click, as it does in page(); the check does not
+    load here, because checks run in the faculty tab."""
+    return ('<!doctype html><html><head><meta charset="utf-8">'
+            '<meta name="synchronizerToken" content="STUDENTTOKEN">'
+            "<title>Student Profile</title></head>"
+            '<body><h1>Banner (stub)</h1><div id="page">Student Profile</div>'
+            f'<script src="{pages}/console.js"></script></body></html>')
+
+
+# Somebody else's page, on a third origin of the same site. It opens a student
+# profile itself, which runs the bridge there, and asks it for a GPA the way the
+# console would: directly, and through a hub of its own. Sharing the site, its
+# hub shares the bridge's channel. The bridge must not answer, or even say
+# hello, and the hub must hand this page nothing. It reports what it got back
+# to the check that opened it.
+def other_page(pages: str) -> str:
+    return """<!doctype html><meta charset="utf-8"><title>Somebody else's page</title>
+<body><script>
+(async () => {
+  const student = location.origin.replace("other.", "studentssb.");
+  const pages = "%s";
+  let hellos = 0, answers = 0, heard = 0;
+  const hub = document.createElement("iframe");
+  hub.src = pages + "/hub.html";
+  document.body.appendChild(hub);
+  await new Promise((r) => { hub.onload = r; });
+  addEventListener("message", (ev) => {
+    if (ev.source === hub.contentWindow) { heard++; return; }
+    if (ev.origin !== student || !ev.data) return;
+    if (ev.data.kind === "hello") hellos++;
+    if (ev.data.kind === "answer") answers++;
+  });
+  const w = window.open(student + "/StudentSelfService/ssb/studentProfile?studentId=01234567");
+  const ask = (i) => ({ bp: 2, kind: "ask", from: "other", id: i, what: "gpa", uin: "01234567" });
+  // Opening the profile puts this page in the background, where Chrome runs
+  // its timers about once a second, so a few asks spread over several seconds.
+  for (let i = 0; i < 6; i++) {
+    await new Promise((r) => setTimeout(r, 250));
+    try { w.postMessage(ask(i), student); } catch (e) {}
+    hub.contentWindow.postMessage({ toOrigin: student, m: ask(100 + i) }, pages);
+  }
+  await new Promise((r) => setTimeout(r, 1500));
+  opener.postMessage({ otherPage: true, hellos, answers, heard }, "*");
+})();
+</script>""" % pages
+
+
+# A page that isn't Banner's, where the bookmark is clicked. The bookmark's own
+# code stands in for the click, as console.js does on the Banner pages.
+def elsewhere_page(bookmark: str) -> str:
+    return ('<!doctype html><meta charset="utf-8"><title>Somewhere else</title>'
+            f"<body><h1>Not Banner</h1><script>{bookmark}</script></body>")
 
 
 def pidm_of(uin: str) -> str | None:
@@ -268,9 +373,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
         u = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
 
+        host = self.headers.get("Host", "")
+        # Where console.js and hub.html come from, as GitHub Pages is to ODU.
+        pages = "http://pages.localhost:" + host.rsplit(":", 1)[-1]
+        # Pages loaded into a tab, as opposed to fetched or framed, so a check
+        # can count the tabs a bridge opened.
+        if self.headers.get("Sec-Fetch-Dest") == "document":
+            self.server.navs.append(host.split(".")[0] + ":" + u.path)
+        if u.path == "/navs":
+            return self.send_json(self.server.navs)
         if u.path == "/console.js":
+            # Loaded by a student-host page means the bridge ran there.
+            if "//studentssb." in self.headers.get("Referer", ""):
+                self.server.hits.add("student:console.js")
             self.send_blob(self.server.console_js.encode(), "application/javascript")
             return
+        if u.path == "/hub.html":
+            return self.send_blob(self.server.hub_html.encode(), "text/html; charset=utf-8")
         # Which endpoint families have been asked for, so a check can assert
         # that something was *not* requested. A feature switched off has to be
         # off at the wire, not merely invisible.
@@ -280,17 +399,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if u.path == "/check.js":
             self.send_blob(self.server.check_js.encode(), "application/javascript")
             return
+        if host.startswith("studentssb."):
+            return self.student_host(u, q, pages)
+        if host.startswith("other.") and u.path == "/elsewhere":
+            return self.send_blob(elsewhere_page(self.server.bookmark).encode(),
+                                  "text/html; charset=utf-8")
+        if host.startswith("other.") and u.path == "/other":
+            return self.send_blob(other_page(pages).encode(), "text/html; charset=utf-8")
+
         # The class-list page. Serving it is what wakes the app up, whether a
         # browser navigated here or the console fetched it in the background.
         # It is also the only page carrying a synchronizer token.
         if "classListPage" in u.path or u.path == "/":
             self.server.warm = True
-            return self.send_blob(page("Class List", "TOKEN123").encode(),
+            return self.send_blob(page("Class List", "TOKEN123", pages).encode(),
                                   "text/html; charset=utf-8")
 
         # Somewhere else in Faculty Self-Service: no token, cold session.
         if u.path.endswith("/menu"):
-            return self.send_blob(page("Faculty Services", None).encode(),
+            return self.send_blob(page("Faculty Services", None, pages).encode(),
                                   "text/html; charset=utf-8")
 
         fam, ok = self.route(u.path)
@@ -302,8 +429,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.not_found()
 
         if fam == "searchStudent/getProfileDetails":
-            return self.send_json({"studentProfileUrl":
-                                   "https://studentssb.example.edu/StudentSelfService/"})
+            # The student host is this host with studentssb in its name, as at ODU.
+            other = self.headers.get("Host", "").replace("facultyssb", "studentssb")
+            return self.send_json({"studentProfileUrl": f"http://{other}/StudentSelfService/"})
 
         if fam == "studentPagesCommonSearch/fetchTerms":
             return self.send_json(TERMS)
@@ -386,6 +514,45 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         return self.not_found()
 
+    def student_host(self, u, q, pages):
+        """Student Self-Service: the profile page, and the one call the bridge
+        makes. Everything else on this host is a 404."""
+        if u.path == "/StudentSelfService/ssb/studentProfile":
+            if not q.get("studentId"):
+                # Faculty, with no student picked: Banner forwards to its class
+                # list, under this app, without /ssb.
+                self.send_response(302)
+                self.send_header("Location", "/StudentSelfService/classListApp/classListPage")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            # The profile app holds one student per session: the last one served.
+            self.server.student_warm = q["studentId"]
+            return self.send_blob(student_page(pages).encode(), "text/html; charset=utf-8")
+        if u.path == "/StudentSelfService/classListApp/classListPage":
+            return self.send_blob(not_available_page(pages).encode(),
+                                  "text/html; charset=utf-8", 404)
+        m = re.match(r"/StudentSelfService(/ssb)?/(.+)$", u.path)
+        if not m:
+            return self.not_found()
+        fam, ssb = m.group(2), bool(m.group(1))
+        self.server.hits.add("student:" + fam)
+        # Under /ssb here, though ENDPOINTS.md records it at the app root, so
+        # the bridge's one fallback gets used.
+        if fam == "studentProfile/viewGPAHoursList" and ssb:
+            # Only once a profile has been served, and with this host's own
+            # token, from that page, not the faculty one.
+            if (not self.server.student_warm or
+                    self.headers.get("X-Synchronizer-Token") != "STUDENTTOKEN"):
+                return self.send_blob(b"no profile, or bad token", "text/plain", 401)
+            # Any student but the one whose profile was served last is a 404,
+            # as real Banner answered for every student after the first.
+            if self.server.student_warm != q.get("studentId"):
+                return self.not_found()
+            rows = GPA.get(pidm_of(q.get("studentId", "")) or "", [])
+            return self.send_json({"success": True, "data": rows})
+        return self.not_found()
+
     # ---- POST -------------------------------------------------------------
 
     def do_POST(self):
@@ -442,14 +609,18 @@ class Server(http.server.ThreadingHTTPServer):
         super().handle_error(request, client_address)
 
 
-def serve(port: int, console_js: str, verbose: bool = False):
+def serve(port: int, console_js: str, hub_html: str, verbose: bool = False):
     srv = Server(("127.0.0.1", port), Handler)
     srv.console_js = console_js
+    srv.hub_html = hub_html
+    srv.bookmark = ""          # the bookmark's own code; run.py sets it
     srv.check_js = ""          # run.py swaps this in per check
     srv.result = None          # a check POSTs its verdict to /result
     srv.done = threading.Event()
     srv.warm = False           # set once the class-list page has been served
+    srv.student_warm = None    # the studentId whose profile was served last
     srv.hits = set()           # endpoint families asked for; see /hits
+    srv.navs = []              # pages loaded into a tab, in order; see /navs
     srv.verbose = verbose
     return srv
 
@@ -460,9 +631,10 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", type=int, default=8801)
     args = ap.parse_args()
-    js = (Path(__file__).resolve().parent.parent / "docs" / "console.js").read_text()
-    srv = serve(args.port, js, verbose=True)
-    print(f"http://127.0.0.1:{args.port}/FacultySelfService/ssb/classListApp/classListPage")
+    docs = Path(__file__).resolve().parent.parent / "docs"
+    srv = serve(args.port, (docs / "console.js").read_text(), (docs / "hub.html").read_text(),
+                verbose=True)
+    print(f"http://facultyssb.odu.localhost:{args.port}/FacultySelfService/ssb/classListApp/classListPage")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

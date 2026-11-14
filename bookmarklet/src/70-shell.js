@@ -193,20 +193,7 @@ var resetW = el("button", { text: "Reset table column widths", style: {
 resetW.onclick = function () { colW = {}; saveColW(); renderMain(); };
 drawer.appendChild(resetW);
 
-/* Where this console came from — the page the bookmark was dragged off.
- *
- * Read off this script's own URL rather than written down. The bundle is
- * served as <base>/console.js, so the script element that loaded it already
- * knows the base, and a fork's copy then points at the fork's page instead of
- * at mine. currentScript is only readable while the script is executing, which
- * is now: this file runs at load, on purpose.
- */
-var HOME = "https://mgrau.github.io/banner_plus/";
-try {
-  var mySrc = document.currentScript && document.currentScript.src;
-  if (mySrc) HOME = mySrc.replace(/[^/]*$/, "");
-} catch (e) {}
-
+// The page the bookmark was dragged off; see HOME in 10-core.
 var homeLink = el("a", { href: HOME, target: "_blank",
   rel: "noopener", style: {
     display: "flex", alignItems: "center", gap: "7px", marginTop: "18px",

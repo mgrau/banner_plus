@@ -4,9 +4,9 @@
     python3 bookmarklet/build.py
     python3 bookmarklet/build.py --base https://mgrau.github.io/banner_plus
 
-Writes docs/console.js and docs/index.html. The Publish workflow runs this on
-every push to main and deploys docs/ to Pages, once the tests pass; running it
-by hand is for looking at the result locally.
+Writes docs/console.js, docs/hub.html and docs/index.html. The Publish
+workflow runs this on every push to main and deploys docs/ to Pages, once the
+tests pass; running it by hand is for looking at the result locally.
 
 THE BUNDLE
 
@@ -80,15 +80,23 @@ _UNSAFE_IN_HREF = "&<>\"'"
 _SAFE = "".join(c for c in "!$&()*+,-./:;=?@_~'" if c not in _UNSAFE_IN_HREF)
 
 
+def number(p: Path) -> int:
+    m = re.match(r"(\d+)", p.name)
+    return int(m.group(1)) if m else 10**6
+
+
 def fragments() -> list[Path]:
     """src/*.js in numeric order — 90 before 100, which a plain sort gets wrong."""
-    def key(p: Path):
-        m = re.match(r"(\d+)", p.name)
-        return (int(m.group(1)) if m else 10**6, p.name)
-    files = sorted(SRC.glob("*.js"), key=key)
+    files = sorted(SRC.glob("*.js"), key=lambda p: (number(p), p.name))
     if not files:
         raise SystemExit(f"no fragments in {SRC}")
     return files
+
+
+# Fragments numbered below this only talk to Banner; from here on they draw
+# the console. On the student host the bundle is the GPA bridge, which needs
+# the first half and must not run any of the second — see bundle().
+DRAWS_FROM = 70
 
 
 def bundle() -> str:
@@ -96,12 +104,26 @@ def bundle() -> str:
 
     00-header.js is a comment block and stays outside the IIFE, so the file
     opens with what it is. Everything after it is indented into the wrapper.
+
+    At the seam between the data layer and the drawing, the bundle asks
+    openBridge() whether this is the student host, and stops there if it is.
+    The line is written here rather than in a fragment because a top-level
+    return is not valid on its own, and every fragment has to be. Function
+    declarations below it are still hoisted, so nothing above can find one
+    missing; only the statements that draw are skipped.
     """
     files = fragments()
     head, body = files[0], files[1:]
     out = [head.read_text(encoding="utf-8").rstrip("\n"), "",
            "(function () {", '  "use strict";', ""]
+    seamed = False
     for f in body:
+        if not seamed and number(f) >= DRAWS_FROM:
+            out += ["  // ---- the seam " + "-" * 59,
+                    "  // Above, the data layer; below, the console. On the student host",
+                    "  // the program is the GPA bridge (src/65-bridge.js), and it ends here.",
+                    "  if (openBridge()) return;", ""]
+            seamed = True
         out.append("  // ---- src/%s %s" % (f.name, "-" * max(0, 62 - len(f.name))))
         for line in f.read_text(encoding="utf-8").rstrip("\n").split("\n"):
             out.append(("  " + line) if line.strip() else "")
@@ -110,14 +132,58 @@ def bundle() -> str:
     return "\n".join(out) + "\n"
 
 
-# Where to send someone who clicks the bookmark on the wrong page. ODU's, since
-# this is built against ODU's Banner; change it with the endpoint names if you
-# are porting this.
-BANNER_URL = ("https://facultyssb-prod.ec.odu.edu/FacultySelfService"
-              "/ssb/classListApp/classListPage")
+# Published beside console.js, which frames it out of sight in each Banner tab
+# it runs in, so the console and the GPA bridge find each other whichever was
+# opened first. A tab can message only a window it already holds — the one that
+# opened it, or one it opened — and every copy of this page framed in the same
+# browser shares one BroadcastChannel, so two tabs meet here without holding
+# anything.
+#
+# It keeps the one rule postMessage keeps: a message names the origin it is
+# for, and is handed only to a tab of that origin. The origin it came from is
+# read off the message event, never off the message, so no page can pass itself
+# off as Faculty Self-Service. Nothing is fetched or stored, and nothing leaves
+# the browser. See src/65-bridge.js.
+HUB_NAME = "hub.html"
+HUB = """<!doctype html>
+<meta charset="utf-8">
+<title>Banner Plus, between tabs</title>
+<script>
+(function () {
+  var mine = null;                   // the origin of the tab framing this copy
+  var ch = new BroadcastChannel("banner-plus");
+  addEventListener("message", function (ev) {
+    var d = ev.data;
+    if (parent === window || ev.source !== parent || !d || typeof d.toOrigin !== "string") return;
+    mine = ev.origin;
+    ch.postMessage({ fromOrigin: ev.origin, toOrigin: d.toOrigin, m: d.m });
+  });
+  ch.onmessage = function (ev) {
+    var d = ev.data;
+    if (!mine || !d || d.toOrigin !== mine) return;
+    try { parent.postMessage({ fromOrigin: d.fromOrigin, m: d.m }, mine); } catch (e) {}
+  };
+})();
+</script>
+"""
 
 
-def loader(base: str, name: str) -> str:
+# Where the bookmark goes when it is clicked anywhere but Banner: Student
+# Self-Service, whose GPA bridge opens Faculty Self-Service in turn. ODU's,
+# since this is built against ODU's Banner; change it with the endpoint names if
+# you are porting this.
+#
+# Banner has no page here for faculty until a student is picked. The profile
+# with no studentId forwards to classListApp/classListPage, which this host
+# does not have, and says "Sorry, This page is not available." That is still
+# the student host, signed in, which is all the bridge needs. Asking for the
+# profile rather than for that page keeps this working if Banner ever does
+# give faculty a page here.
+STUDENT_URL = "https://studentssb-prod.ec.odu.edu/StudentSelfService/ssb/studentProfile"
+
+
+def loader(base: str, name: str, student: str = STUDENT_URL,
+           unreachable: str | None = None) -> str:
     """The bookmark itself: a few lines that fetch the real program.
 
     WHY IT CANNOT OPEN BANNER AND INJECT IN ONE CLICK
@@ -132,23 +198,33 @@ def loader(base: str, name: str) -> str:
     the policy exists to prevent. Doing it properly needs a browser extension,
     which is an install.
 
-    So: clicked somewhere else, it offers to take you to Banner. That is one
-    extra click, once, and it beats an alert that only says no.
+    So: clicked anywhere else, it opens Student Self-Service in a new tab and
+    leaves the page it was clicked on alone. Chrome allows one new tab per
+    click, so it opens the one that leads to the other. Clicked there, the
+    bookmark is the GPA bridge, which opens Faculty Self-Service in front; clicked
+    there, it is the console, already connected. Three clicks, and no going back
+    and forth between tabs. If the new tab is blocked, this one goes instead.
+    The student tab opens on Banner's "not available" page; see STUDENT_URL.
+
+    unreachable replaces the alert for a console.js that will not load.
     """
     base = base.rstrip("/")
+    unreachable = unreachable or (
+        "Banner Plus could not load " + name + " from " + base + ".\\n\\nEither the "
+        "site is unreachable, or this page blocked the script \\u2014 check the "
+        "browser console for a Content-Security-Policy error.")
     js = (
         "(function(){"
         # Banner's own pages, by host or by path, so it also works on an
-        # install that is not ODU's.
-        "if(!/facultyssb|\\/FacultySelfService/i.test(location.host+location.pathname)){"
-        "if(confirm('Banner Plus runs inside Banner Faculty Self-Service.\\n\\n"
-        "Open it now? Then click this bookmark again.'))"
-        "location.href='" + BANNER_URL + "';return;}"
+        # install that is not ODU's. Student Self-Service counts: there the
+        # same script is the GPA bridge (src/65-bridge.js).
+        "if(!/(faculty|student)ssb|\\/(Faculty|Student)SelfService/i"
+        ".test(location.host+location.pathname)){"
+        "var u='" + student + "';"
+        "if(!window.open(u,'_blank'))location.href=u;return;}"
         "var d=document,s=d.createElement('script');"
         "s.src='" + base + "/" + name + "?v='+Date.now();"
-        "s.onerror=function(){alert('Banner Plus could not load " + name + " from "
-        + base + ".\\n\\nEither the site is unreachable, or this page blocked the "
-        "script \\u2014 check the browser console for a Content-Security-Policy error.');};"
+        "s.onerror=function(){alert('" + unreachable + "');};"
         "d.body.appendChild(s);"
         "})();"
     )
@@ -500,7 +576,8 @@ PAGE = """<!doctype html>
       </svg>
     </div>
   </div>
-  <p class="step"><b>Drag it to your bookmarks bar.</b> Then open Banner and click it.<br>
+  <p class="step"><b>Drag it to your bookmarks bar.</b> Then click it anywhere, and again
+  in each Banner tab it opens, even the one that says the page is not available.<br>
   No install, no extension, no account.</p>
 </div>
 
@@ -557,6 +634,7 @@ def main() -> int:
 
     js = bundle()
     (DOCS / BOOKMARKLET).write_text(js, encoding="utf-8")
+    (DOCS / HUB_NAME).write_text(HUB, encoding="utf-8")
 
     href = loader(base, BOOKMARKLET)
     repo = repo_url(base)

@@ -12,20 +12,29 @@ var SEARCH_TYPES = ["Advisee", "Student", "advisee", "student", "MyStudents", ""
 
 /* Where the student self-service host lives. The console cannot read that
  * origin, but it can send you to it, which is the manual answer for anything
- * Banner keeps over there — GPA, holds, test scores. Banner reports the URL
- * itself, which beats guessing at a hostname by string surgery on this one. */
+ * Banner keeps over there — GPA, holds, test scores — and, once a tab there is
+ * connected, the bridge reads it (65-bridge.js). Banner reports the URL
+ * itself, which beats guessing at a hostname by string surgery on this one.
+ *
+ * Asked from the faculty host only. On the student host this bundle is the
+ * bridge, and the question would earn nothing but two 404s. */
 var PROFILE_HOST = null;
 
-apiGet("searchStudent/getProfileDetails").then(function (j) {
-  if (j && j.studentProfileUrl) {
-    try { PROFILE_HOST = new URL(j.studentProfileUrl).origin; } catch (e) {}
-    if (DEBUG) console.log("[console] student profile host:", PROFILE_HOST);
-  }
-}).catch(function () {});
+if (APP === "FacultySelfService") {
+  apiGet("searchStudent/getProfileDetails").then(function (j) {
+    if (j && j.studentProfileUrl) {
+      try { PROFILE_HOST = new URL(j.studentProfileUrl).origin; } catch (e) {}
+      if (DEBUG) console.log("[console] student profile host:", PROFILE_HOST);
+    }
+  }).catch(function () {});
+}
+
+function studentHost() {
+  return PROFILE_HOST || location.origin.replace("facultyssb", "studentssb");
+}
 
 function profileURL(uin, term) {
-  var host = PROFILE_HOST || location.origin.replace("facultyssb", "studentssb");
-  return host + "/StudentSelfService/ssb/studentProfile?studentId=" +
+  return studentHost() + "/StudentSelfService/ssb/studentProfile?studentId=" +
     encodeURIComponent(uin) + "&term=" + encodeURIComponent(term);
 }
 
@@ -436,6 +445,49 @@ function fetchMajorHistory(s) {
     return fetchMajorAt(s.uin, t.code).then(function (m) {
       return { code: t.code, label: t.label, major: m };
     });
+  });
+}
+
+/* The registrar's GPA — the number README's "About GPA" says this page cannot
+ * read. It lives on the student host and arrives through the bridge
+ * (65-bridge.js), once a tab there is connected.
+ *
+ * viewGPAHoursList sends a GPA per level and a total, under field names that
+ * have not been recorded yet. So every row comes back as Banner labels it,
+ * field by field, and the pane shows it that way: picking "the" GPA out of an
+ * unseen payload by name is how a console ends up showing the wrong figure,
+ * perfectly formatted. Once the real names are known, pick one and say which.
+ *
+ * One guard costs nothing and can only refuse: a row that names a student
+ * who is not the one asked about means nothing is shown. The ID itself is
+ * then left out — the UIN is already in the facts. */
+var GPA_ENVELOPE = /^(success|length|offset|max|message)$/;
+var gpaKnown = {};
+
+function fetchOfficialGPA(s, term) {
+  if (gpaKnown[s.uin]) return Promise.resolve(gpaKnown[s.uin]);
+  var want = String(s.uin).replace(/^0+/, "");
+  return bridgeAsk("gpa", s.uin, term).then(function (j) {
+    var rows = [];
+    (function walk(o) {
+      if (!o || typeof o !== "object") return;
+      if (Array.isArray(o)) { o.forEach(walk); return; }
+      var fields = [];
+      Object.keys(o).forEach(function (k) {
+        var v = o[k];
+        if (v == null || v === "" || typeof v === "object" || GPA_ENVELOPE.test(k)) return;
+        if (/^(bannerId|studentId)$/i.test(k)) {
+          if (String(v).replace(/^0+/, "") !== want)
+            throw new Error("Banner answered about a different student");
+          return;
+        }
+        fields.push([k, String(v)]);
+      });
+      if (fields.length) rows.push(fields);
+      Object.keys(o).forEach(function (k) { if (o[k] && typeof o[k] === "object") walk(o[k]); });
+    })(j);
+    gpaKnown[s.uin] = rows;
+    return rows;
   });
 }
 

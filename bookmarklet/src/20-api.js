@@ -5,7 +5,12 @@
  * settled once rather than at each call site.
  */
 
-var base = location.origin + "/FacultySelfService";
+/* Which Banner app this page belongs to. The console runs in Faculty
+ * Self-Service; on the student host the same bundle is the GPA bridge (see
+ * 65-bridge.js), and what it asks for lives under Student Self-Service. */
+var APP = /^\/StudentSelfService(\/|$)/i.test(location.pathname)
+  ? "StudentSelfService" : "FacultySelfService";
+var base = location.origin + "/" + APP;
 
 /* Look like Banner's own AJAX. Its recorded requests carry
  * X-Requested-With and, on several endpoints, X-Synchronizer-Token; without
