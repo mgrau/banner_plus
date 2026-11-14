@@ -360,14 +360,19 @@ CHECKS = [
       // Fetch opens the profile tab, and the bookmark run there is the bridge.
       click(fetchBtn);
       await waitFor("Jane's figures, through the bridge", () =>
-        /gpa 3\.42/.test(text(rightPane())), 10000);
+        /3\.42overall/.test(text(rightPane())), 10000);
       const box = byText("div", "Registrar's GPA", rightPane()).parentNode;
       if (/01234567/.test(text(box))) return "the student's ID is shown as a figure: " + text(box);
       if (byText("button", "Fetch", box)) return "Fetch is still offered beside the figures";
+      // Overall leads, its Overall row is not repeated, and transfer credit
+      // shows hours without the 0.00 Banner sends for it.
+      const lines = Array.from(box.children[1].children).map(text);
+      if (lines.join("|") !== "3.42overall · 41 hrs|Institution 3.42 · 11 hrs|Transfer 30 hrs")
+        return "GPA laid out as: " + lines.join("|");
 
       // Another student, through the same tab, with no second click.
       click($$("img", main()).filter((i) => /John Smith/.test(text(i.parentNode)))[0].parentNode);
-      await waitFor("John's figures", () => /gpa 2\.87/.test(text(rightPane())), 10000);
+      await waitFor("John's figures", () => /2\.87overall/.test(text(rightPane())), 10000);
 
       const hits = await (await fetch("/hits")).json();
       if (!hits.includes("student:studentProfile/viewGPAHoursList"))
@@ -381,7 +386,7 @@ CHECKS = [
       await openFall101();
       click($$("img", main())[0].parentNode);                  // Jane
       await waitFor("Jane's figures, without Fetch", () =>
-        /gpa 3\.42/.test(text(rightPane())), 10000);
+        /3\.42overall/.test(text(rightPane())), 10000);
       return true;
     """),
 
@@ -394,10 +399,10 @@ CHECKS = [
       await openFall101();
       click($$("img", main())[0].parentNode);                  // Jane
       await waitFor("Jane's figures, without Fetch", () =>
-        /gpa 3\.42/.test(text(rightPane())), 10000);
+        /3\.42overall/.test(text(rightPane())), 10000);
       // And the next student: the profile woken up for Jane knows only Jane.
       click($$("img", main()).filter((i) => /John Smith/.test(text(i.parentNode)))[0].parentNode);
-      await waitFor("John's figures", () => /gpa 2\.87/.test(text(rightPane())), 10000);
+      await waitFor("John's figures", () => /2\.87overall/.test(text(rightPane())), 10000);
       // One tab each, and the page it was clicked on left as it was, in a tab
       // of its own: the opener of the tab that opened this one.
       const first = window.opener.opener;
@@ -424,7 +429,7 @@ CHECKS = [
       window.open(location.origin.replace("facultyssb.", "studentssb.") +
                   "/StudentSelfService/ssb/studentProfile", "_blank", "noopener");
       await waitFor("Jane's figures, without Fetch", () =>
-        /gpa 3\.42/.test(text(rightPane())), 10000);
+        /3\.42overall/.test(text(rightPane())), 10000);
 
       // Having found this console, it opened no other. A bridge decides within
       // a few seconds of starting, so wait those out before counting.
@@ -446,7 +451,7 @@ CHECKS = [
       await openFall101();
       click($$("img", main())[0].parentNode);                  // Jane
       await waitFor("Jane's figures, without Fetch", () =>
-        /gpa 3\.42/.test(text(rightPane())), 10000);
+        /3\.42overall/.test(text(rightPane())), 10000);
       return true;
     """),
 

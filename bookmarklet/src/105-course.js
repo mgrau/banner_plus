@@ -280,9 +280,8 @@ function renderCourse(c, sec, detail) {
   if (!drew) {
     courseBody.appendChild(el("div", {
       text: detail.failed === detail.tried
-        ? "Banner would not answer for course detail here — see ENDPOINTS.md if " +
-          "this campus names those routes differently."
-        : "Banner has no catalogue detail on file for this section.",
+        ? "Banner wouldn't answer for course detail"
+        : "No catalogue detail on file",
       style: { color: "#9aa1ab", fontStyle: "italic", marginTop: "10px", lineHeight: "1.45" } }));
   }
 }

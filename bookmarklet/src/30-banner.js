@@ -474,42 +474,37 @@ function fetchMajorHistory(s) {
  * read. It lives on the student host and arrives through the bridge
  * (65-bridge.js), once a tab there is connected.
  *
- * viewGPAHoursList sends a GPA per level and a total, under field names that
- * have not been recorded yet. So every row comes back as Banner labels it,
- * field by field, and the pane shows it that way: picking "the" GPA out of an
- * unseen payload by name is how a console ends up showing the wrong figure,
- * perfectly formatted. Once the real names are known, pick one and say which.
+ * viewGPAHoursList sends an overall figure (overallGpa, overallHours) and a
+ * row per level and type: gpa, hours, hoursAttempted, levelDesc, typeDesc
+ * (Institution, Transfer, Overall). Found by those names wherever they sit,
+ * since the envelope around them was not recorded. Comes back as
+ * { overall: {gpa, hours} | null, rows: [{level, type, gpa, hours}] }.
  *
  * One guard costs nothing and can only refuse: a row that names a student
- * who is not the one asked about means nothing is shown. The ID itself is
- * then left out — the UIN is already in the facts. */
-var GPA_ENVELOPE = /^(success|length|offset|max|message)$/;
+ * who is not the one asked about means nothing is shown. */
 var gpaKnown = {};
 
 function fetchOfficialGPA(s, term) {
   if (gpaKnown[s.uin]) return Promise.resolve(gpaKnown[s.uin]);
   var want = String(s.uin).replace(/^0+/, "");
   return bridgeAsk("gpa", s.uin, term).then(function (j) {
-    var rows = [];
+    var out = { overall: null, rows: [] };
     (function walk(o) {
       if (!o || typeof o !== "object") return;
       if (Array.isArray(o)) { o.forEach(walk); return; }
-      var fields = [];
-      Object.keys(o).forEach(function (k) {
-        var v = o[k];
-        if (v == null || v === "" || typeof v === "object" || GPA_ENVELOPE.test(k)) return;
-        if (/^(bannerId|studentId)$/i.test(k)) {
-          if (String(v).replace(/^0+/, "") !== want)
-            throw new Error("Banner answered about a different student");
-          return;
-        }
-        fields.push([k, String(v)]);
+      ["bannerId", "studentId"].forEach(function (k) {
+        if (o[k] != null && String(o[k]).replace(/^0+/, "") !== want)
+          throw new Error("Banner answered about a different student");
       });
-      if (fields.length) rows.push(fields);
+      if (o.overallGpa != null)
+        out.overall = { gpa: o.overallGpa, hours: o.overallHours };
+      if (o.gpa != null && (o.typeDesc || o.gpaTypeIndicatorDesc))
+        out.rows.push({ level: o.levelDesc || "", type: o.typeDesc || o.gpaTypeIndicatorDesc,
+                        gpa: o.gpa, hours: o.hours });
       Object.keys(o).forEach(function (k) { if (o[k] && typeof o[k] === "object") walk(o[k]); });
     })(j);
-    gpaKnown[s.uin] = rows;
-    return rows;
+    gpaKnown[s.uin] = out;
+    return out;
   });
 }
 

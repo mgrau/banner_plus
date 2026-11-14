@@ -287,10 +287,7 @@ function showGroupModal(opts) {
   card.onclick = function (ev) { ev.stopPropagation(); };
 
   card.appendChild(el("div", { text: opts.title || "New group",
-    style: { fontWeight: "700", fontSize: "16px", marginBottom: "2px" } }));
-  card.appendChild(el("div", {
-    text: "An artificial class built from students — a research group, a set of advisees.",
-    style: { fontSize: "12px", color: "#6b7280", marginBottom: "10px" } }));
+    style: { fontWeight: "700", fontSize: "16px", marginBottom: "10px" } }));
 
   var fieldStyle = {
     width: "100%", padding: "7px 9px", borderRadius: "6px", border: "1px solid #c7d0dd",

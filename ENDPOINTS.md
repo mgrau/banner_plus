@@ -336,9 +336,12 @@ Four things about that are **not yet confirmed against ODU**:
   session the first student answered and every later one was a 404. So before
   a question about a new student, the bridge fetches that student's profile.
   That this is enough for every student has not been seen yet.
-- **The payload's field names.** Not recorded yet, so the console shows each
-  row under Banner's own labels rather than guessing which field is the GPA.
-  Record them (names only, values redacted) and pick one.
+- **The payload's field names.** `overallGpa` and `overallHours`, and a row per
+  level and type: `gpa`, `hours`, `hoursAttempted`, `levelDesc`, `typeDesc`,
+  `gpaTypeIndicatorDesc`. The types are Institution, Transfer and Overall.
+  Transfer comes with `gpa` 0.00, because Banner computes no GPA for transfer
+  credit. The envelope around the rows has not been recorded, so the console
+  finds them by these names wherever they sit.
 
 | Endpoint | Keyed by | Returns |
 |---|---|---|

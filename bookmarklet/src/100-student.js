@@ -191,11 +191,13 @@ function majorHistoryBox(s) {
  * against each other. It comes through the bridge (65-bridge.js); without a
  * connected tab the box offers Fetch, which opens the tab the bridge runs in.
  *
- * Shown as Banner labels it until the real field names are known — see
- * fetchOfficialGPA. Figures already fetched stay on screen if the tab goes
- * away, because they were true a minute ago and refetching them costs Banner
+ * The overall figure leads; the rows under it are what it is made of.
+ * Figures already fetched stay on screen if the tab goes away, because they were true a minute ago and refetching them costs Banner
  * a request. */
 var gpaShown = null;           // { s, box } for the student on screen
+
+function gpaFig(v) { return isFinite(+v) && v !== "" ? (+v).toFixed(2) : String(v); }
+function hrs(v) { return (isFinite(+v) && v !== "" ? +v : v) + " hrs"; }
 
 function officialGPABox(s) {
   var box = el("div", { style: { marginTop: "12px", fontSize: "12px" } });
@@ -218,28 +220,43 @@ function drawOfficialGPA(box, s) {
   // answer to the old one then has nowhere to go.
   var body = el("div", { text: "Asking Banner…", style: { color: "#6b7280", fontSize: "11.5px" } });
   box.appendChild(body);
-  fetchOfficialGPA(s, curTerm()).then(function (rows) {
+  fetchOfficialGPA(s, curTerm()).then(function (g) {
     if (!box.contains(body)) return;
     body.innerHTML = "";
     body.style.color = "#16191f";
     body.style.fontSize = "12px";
-    if (!rows.length) {
-      body.textContent = "Banner has no GPA on file for this student.";
+    // The Overall row repeats the headline, so it is the headline when
+    // there is no separate one, and dropped when there is.
+    var head = g.overall, rest = [];
+    g.rows.forEach(function (r) {
+      if (/^overall$/i.test(r.type)) { if (!head) head = r; } else rest.push(r);
+    });
+    if (!head && !rest.length) {
+      body.textContent = "No GPA on file";
       body.style.color = "#9aa1ab";
       return;
     }
-    rows.forEach(function (r) {
-      var line = el("div", { style: { padding: "1px 0", lineHeight: "1.5" } });
-      r.forEach(function (kv, i) {
-        if (i) line.appendChild(el("span", { text: " · ", style: { color: "#c2c8d2" } }));
-        line.appendChild(el("span", { text: kv[0] + " ", style: { color: "#6b7280" } }));
-        line.appendChild(el("span", { text: kv[1], style: { fontWeight: "600" } }));
-      });
+    if (head) {
+      var top = el("div", { style: { display: "flex", alignItems: "baseline", gap: "6px" } });
+      top.appendChild(el("span", { text: gpaFig(head.gpa),
+        style: { fontSize: "16px", fontWeight: "700" } }));
+      top.appendChild(el("span", { text: "overall · " + hrs(head.hours),
+        style: { color: "#6b7280" } }));
+      body.appendChild(top);
+    }
+    // Level only matters once there are two of them.
+    var levels = {};
+    rest.forEach(function (r) { levels[r.level] = 1; });
+    var many = Object.keys(levels).length > 1;
+    rest.forEach(function (r) {
+      var line = el("div", { style: { lineHeight: "1.5" } });
+      line.appendChild(el("span", { text: (many ? r.level + " " : "") + r.type + " ",
+        style: { color: "#6b7280" } }));
+      // Banner keeps no GPA for transfer credit and sends 0.00: hours only.
+      var noGpa = /transfer/i.test(r.type) && !(+r.gpa);
+      line.appendChild(el("span", { text: (noGpa ? "" : gpaFig(r.gpa) + " · ") + hrs(r.hours) }));
       body.appendChild(line);
     });
-    box.appendChild(el("div", {
-      text: "As Banner labels it, from the student profile, through the tab you connected.",
-      style: { fontSize: "10.5px", color: "#9aa1ab", marginTop: "2px", lineHeight: "1.4" } }));
   }, function (e) {
     if (!box.contains(body)) return;
     body.textContent = "Banner wouldn't answer: " + (e.message || e);
@@ -371,14 +388,12 @@ function focusStudent(s) {
      * tooltip. The registrar's own figure follows it, through the bridge. */
     var all = gpaOf(s.history);
     if (all) {
-      out.push(el("div", { text: "Cumulative GPA " + all.gpa.toFixed(2) + " over " + all.hours + " credits",
+      out.push(el("div", {
+        text: "Cumulative GPA (approx.) " + all.gpa.toFixed(2) + " · " + all.hours + " credits",
+        title: "Computed from the letter grades above: blind to repeats, grade " +
+               "forgiveness and transfer credit, so it can disagree with the registrar.",
         style: { borderTop: "2px solid #222", marginTop: "6px", paddingTop: "4px",
                  fontSize: "12px", fontWeight: "600" } }));
-      out.push(el("div", {
-        text: "Approximate — computed from letter grades above",
-        title: "Blind to repeats, grade forgiveness and transfer credit, so it can " +
-               "disagree with the registrar.",
-        style: { fontSize: "10.5px", color: "#9aa1ab", marginTop: "2px", lineHeight: "1.4" } }));
     }
     if (s.uin) out.push(officialGPABox(s));
 

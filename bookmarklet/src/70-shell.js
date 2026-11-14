@@ -204,10 +204,6 @@ homeLink.appendChild(el("span", { text: "✦", style: {
   color: "#2a78d6", fontSize: "15px", lineHeight: "1" } }));
 homeLink.appendChild(el("span", { text: "What it does, and how to install it" }));
 drawer.appendChild(homeLink);
-drawer.appendChild(el("div", {
-  text: "Runs in your browser on the Banner session you are already signed in to. " +
-        "Nothing is uploaded.",
-  style: { fontSize: "11px", color: "#9aa1ab", marginTop: "10px", lineHeight: "1.45" } }));
 
 document.addEventListener("mousedown", function (ev) {
   if (!drawerIsOpen()) return;

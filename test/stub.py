@@ -217,17 +217,22 @@ COURSE_DETAIL = {
     },
 }
 
-# pidm -> the registrar's figures, as viewGPAHoursList might send them. The
-# field names are invented: the real ones have not been recorded yet (see
-# ENDPOINTS.md). The console shows rows as Banner labels them, so these only
-# have to be plausible, not right.
+# pidm -> the registrar's figures, under the field names viewGPAHoursList
+# was seen to send. The values are invented, and so is the name of the list:
+# the envelope around the rows was not recorded.
 GPA = {
-    "900001": [{"bannerId": "01234567", "level": "Undergraduate", "gpaType": "Institution",
-                "hoursEarned": "11", "gpa": "3.42"},
-               {"bannerId": "01234567", "level": "Undergraduate", "gpaType": "Overall",
-                "hoursEarned": "41", "gpa": "3.38"}],
-    "900002": [{"bannerId": "01234568", "level": "Undergraduate", "gpaType": "Overall",
-                "hoursEarned": "96", "gpa": "2.87"}],
+    "900001": {"overallGpa": "3.42", "overallHours": "41", "gpaHoursList": [
+        {"gpa": "3.42", "hours": "11", "hoursAttempted": "11", "levelDesc": "Undergraduate",
+         "typeDesc": "Institution", "gpaTypeIndicatorDesc": "Institution"},
+        {"gpa": "0.00", "hours": "30", "hoursAttempted": "30", "levelDesc": "Undergraduate",
+         "typeDesc": "Transfer", "gpaTypeIndicatorDesc": "Transfer"},
+        {"gpa": "3.42", "hours": "41", "hoursAttempted": "41", "levelDesc": "Undergraduate",
+         "typeDesc": "Overall", "gpaTypeIndicatorDesc": "Overall"}]},
+    "900002": {"overallGpa": "2.87", "overallHours": "96", "gpaHoursList": [
+        {"gpa": "2.87", "hours": "96", "hoursAttempted": "99", "levelDesc": "Undergraduate",
+         "typeDesc": "Institution", "gpaTypeIndicatorDesc": "Institution"},
+        {"gpa": "2.87", "hours": "96", "hoursAttempted": "99", "levelDesc": "Undergraduate",
+         "typeDesc": "Overall", "gpaTypeIndicatorDesc": "Overall"}]},
 }
 
 # A 1x1 PNG. Enough for the console to accept as an image and draw.
@@ -580,7 +585,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # as real Banner answered for every student after the first.
             if self.server.student_warm != q.get("studentId"):
                 return self.not_found()
-            rows = GPA.get(pidm_of(q.get("studentId", "")) or "", [])
+            rows = GPA.get(pidm_of(q.get("studentId", "")) or "", {})
             return self.send_json({"success": True, "data": rows})
         return self.not_found()
 
