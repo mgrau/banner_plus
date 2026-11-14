@@ -260,13 +260,22 @@ function addResizer(th, colEl, key, COLS) {
   th.appendChild(grip);
 }
 
+/* By year, then Spring, Summer, Fall: the calendar, not the alphabet, which
+ * put Fall first. Anything that is not a term sorts after the terms. */
+var SEASON_ORDER = { Spring: 0, Summer: 1, Fall: 2 };
+function byAdmit(a, b) {
+  var x = parseTerm(a.admit), y = parseTerm(b.admit);
+  if (!x || !y) return (x ? -1 : 0) + (y ? 1 : 0);
+  return x.year - y.year || SEASON_ORDER[x.season] - SEASON_ORDER[y.season];
+}
+
 function studentTable() {
   var COLS = [
     { key: "name", label: "Name", get: function (s) { return s.name; }, cmp: byName },
     { key: "uin", label: "UIN", get: function (s) { return s.uin; } },
     { key: "majors", label: "Major", get: function (s) { return (s.majors || []).join(" / "); } },
     { key: "standing", label: "Standing", get: function (s) { return s.standing || ""; } },
-    { key: "admit", label: "Admitted", get: function (s) { return s.admit || ""; } },
+    { key: "admit", label: "Admitted", get: function (s) { return s.admit || ""; }, cmp: byAdmit },
     { key: "email", label: "Email", get: function (s) { return s.email || ""; } }
   ];
   var col = COLS.filter(function (c) { return c.key === tableSort.col; })[0] || COLS[0];

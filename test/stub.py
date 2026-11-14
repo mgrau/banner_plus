@@ -101,7 +101,7 @@ STUDENTS = {
                "college": "Sciences", "admit": "Fall 2024", "standing": "Junior",
                "email": "jdoe001@odu.edu", "confidential": False},
     "900002": {"uin": "01234568", "name": "SMITH, JOHN", "major": "Astrophysics",
-               "college": "Sciences", "admit": "Fall 2023", "standing": "Senior",
+               "college": "Sciences", "admit": "Summer 2024", "standing": "Senior",
                "email": "jsmit002@odu.edu", "confidential": True},
     "900003": {"uin": "01234569", "name": "O'BRIEN, MARY-JO", "major": "Physics",
                "college": "Sciences", "admit": "Spring 2025", "standing": "Sophomore",

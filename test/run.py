@@ -238,6 +238,11 @@ CHECKS = [
       await sleep(50);
       if (names() !== "John Smith|Mary-Jo O'Brien|Jane A Doe")
         return "Name ▼ is not the reverse: " + names();
+      // Admitted runs by the calendar: Summer 2024 before Fall 2024.
+      click(byText("th", "Admitted", main()));
+      await sleep(50);
+      if (names() !== "John Smith|Jane A Doe|Mary-Jo O'Brien")
+        return "Admitted is not in calendar order: " + names();
       click(byText("button", "Photos", main()));
       return true;
     """),
