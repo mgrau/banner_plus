@@ -32,9 +32,10 @@ var S = {
 var ALL_TERMS_CODE = "__all__";
 function curTerm() { return S.activeTerm || S.term; }
 function curLabel() { return S.activeLabel || S.termLabel; }
-function newestStandard() {
+// The term under way, or with every term over the newest, which Banner lists first.
+function defaultTerm() {
   var std = ALL_TERMS.filter(isStandardTerm);
-  return std.length ? std[0] : (ALL_TERMS[0] || null);
+  return currentTerm(std) || std[0] || ALL_TERMS[0] || null;
 }
 
 var old = document.getElementById("bc-app");

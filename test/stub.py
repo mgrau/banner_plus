@@ -62,7 +62,11 @@ import sys
 import threading
 from urllib.parse import parse_qs, urlparse
 
+# Newest first, as Banner lists them, and months ahead: Spring and Summer 2027
+# are there while Fall 2026 is still being taught. See TODAY.
 TERMS = [
+    {"code": "202630", "description": "Summer 2027"},
+    {"code": "202620", "description": "Spring 2027"},
     {"code": "202610", "description": "Fall 2026"},
     {"code": "202520", "description": "Spring 2026"},
     {"code": "202530", "description": "Summer 2026"},
@@ -230,12 +234,34 @@ GPA = {
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
 
+# The day the faculty pages believe it is: in Fall 2026, with Spring and Summer
+# 2027 already listed. The console opens on the term under way, and every check
+# that opens a Fall 2026 class relies on that being Fall 2026 whenever the
+# suite runs.
+TODAY = "2026-11-12T12:00:00"
+
+# Moves the page's clock to TODAY before the console loads. Shifted, not
+# frozen: waitFor() times its timeouts with it.
+CLOCK = """<script>(() => {
+  const Real = Date, shift = new Real("%s").getTime() - Real.now();
+  function D(...a) {
+    if (!new.target) return new Real(Real.now() + shift).toString();
+    return a.length ? new Real(...a) : new Real(Real.now() + shift);
+  }
+  D.prototype = Real.prototype;
+  D.now = () => Real.now() + shift;
+  D.parse = Real.parse;
+  D.UTC = Real.UTC;
+  window.Date = D;
+})();</script>""" % TODAY
+
+
 def page(title: str, token: str | None, pages: str, scripts: bool = True) -> str:
     return ("<!doctype html><html><head><meta charset=\"utf-8\">" +
             (f'<meta name="synchronizerToken" content="{token}">' if token else "") +
             f"<title>{title}</title></head>"
             f"<body><h1>Banner (stub)</h1><div id=\"page\">{title}</div>" +
-            (f'<script src="{pages}/console.js"></script><script src="/check.js"></script>'
+            (CLOCK + f'<script src="{pages}/console.js"></script><script src="/check.js"></script>'
              if scripts else "") +
             "</body></html>")
 

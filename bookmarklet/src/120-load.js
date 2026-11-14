@@ -93,9 +93,9 @@ function openSection(sec) {
 
 function openGroup(grp) {
   // A group is not tied to a term, so under "All terms" it needs a concrete
-  // one to resolve against; the newest standard term is the useful default.
+  // one to resolve against; the term under way is the useful default.
   if (S.term === ALL_TERMS_CODE) {
-    var t = newestStandard();
+    var t = defaultTerm();
     S.activeTerm = t ? t.code : null;
     S.activeLabel = t ? t.description : "";
   } else {

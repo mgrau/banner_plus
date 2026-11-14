@@ -15,9 +15,12 @@ function fillTerms() {
   list.forEach(function (t) {
     termSel.appendChild(el("option", { value: t.code, text: t.description }));
   });
-  // Default to the newest real term rather than the everything view: teaching
-  // now is the common case, and the fan-out costs a request per term.
+  // Default to the term being taught now rather than the everything view:
+  // that is the common case, and the fan-out costs a request per term. With
+  // every term over, the newest, which Banner lists first.
   termSel.selectedIndex = list.length ? 1 : 0;
+  var cur = currentTerm(list);
+  if (cur) termSel.value = cur.code;
   S.term = termSel.value;
   S.termLabel = termSel.options[termSel.selectedIndex].text;
 }

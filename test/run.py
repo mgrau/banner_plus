@@ -126,6 +126,35 @@ CHECKS = [
       return true;
     """),
 
+    ("it opens on the term under way, not the newest one listed", r"""
+      // Mid-November by the stub's clock, with Spring and Summer 2027 listed above.
+      const sel = await waitFor("term dropdown", () => {
+        const s = app().querySelector("select");
+        return s.options.length > 1 && s;
+      });
+      const opts = Array.from(sel.options).map((o) => o.text);
+      if (opts.indexOf("Summer 2027") !== 1) return "Summer 2027 isn't listed first: " + opts.join("|");
+      const picked = sel.options[sel.selectedIndex].text;
+      if (picked !== "Fall 2026") return "opened on " + picked;
+      return true;
+    """),
+
+    ("a term is current until a few days after its exams", r"""
+      const terms = [{code: "202630", description: "Summer 2027"},
+                     {code: "202620", description: "Spring 2027"},
+                     {code: "202610", description: "Fall 2026"},
+                     {code: "202617", description: "Fall 2026 Second Eight Weeks"}];
+      const on = (d) => (currentTerm(terms, new Date(d)) || {}).description || "none";
+      for (const [d, want] of [["2026-08-30T09:00", "Fall 2026"],
+                               ["2026-12-20T23:59", "Fall 2026"],
+                               ["2026-12-21T00:00", "Spring 2027"],
+                               ["2027-05-15T23:59", "Spring 2027"],
+                               ["2027-05-16T00:00", "Summer 2027"],
+                               ["2027-08-16T00:00", "none"]])
+        if (on(d) !== want) return d + " is " + on(d) + ", not " + want;
+      return true;
+    """),
+
     ("my classes list, empty section hidden", r"""
       await waitFor("sections", () => sectionRows().length >= 2);
       const labels = sectionRows().map((r) => text(r));
@@ -775,7 +804,8 @@ CHECKS = [
 
 # These checks reach into the console's own scope, which a bookmarklet
 # does not expose. They run with the IIFE opened up; see harness().
-INTERNAL = {"printed photo roster fits and carries a legend",
+INTERNAL = {"a term is current until a few days after its exams",
+            "printed photo roster fits and carries a legend",
             "printed free-time sheet names who was left out",
             "the slider sets how many faces reach a printed row",
             "the planner link carries the whole record in its fragment"}
@@ -833,7 +863,7 @@ def harness(js: str, internal: bool) -> str:
         return js
     tail = "})();"
     i = js.rstrip().rfind(tail)
-    return (js[:i] + "  window.__bp = { S, el, hydrate, curTerm, "
+    return (js[:i] + "  window.__bp = { S, el, hydrate, curTerm, currentTerm, "
             "photoRosterDoc, freeTimeDoc, plannerLink };\n" + js[i:])
 
 
@@ -922,8 +952,8 @@ def main() -> int:
             internal = name in INTERNAL
             srv.console_js = harness(js, internal)
             if internal:
-                script = ("const {S, el, hydrate, curTerm, photoRosterDoc, freeTimeDoc, plannerLink} "
-                          "= window.__bp;\n") + script
+                script = ("const {S, el, hydrate, curTerm, currentTerm, photoRosterDoc, "
+                          "freeTimeDoc, plannerLink} = window.__bp;\n") + script
             srv.check_js = check_script(script)
             page = START_PAGE.get(name, default_page)
             # A check starts on the host its page belongs to: Faculty or Student

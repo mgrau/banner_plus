@@ -48,6 +48,28 @@ function isStandardTerm(t) {
          /^(Spring|Summer|Fall)\s+\d{4}$/.test(String(t.description).trim());
 }
 
+/* The term under way, which is what the console opens on. Not the newest:
+ * Banner lists a term months before it starts, so in November its newest is
+ * next summer's. The list carries no dates, so each season ends on a fixed
+ * day, a few days after exams and grades: the current term is the first one
+ * not yet over, which between terms is the next. Null if all are over. */
+var TERM_ENDS = { Spring: [4, 15], Summer: [7, 15], Fall: [11, 20] };   // month 0-11, day
+
+function termEnd(t) {
+  var p = parseTerm(t.description), e = p && TERM_ENDS[p.season];
+  return e ? new Date(p.year, e[0], e[1] + 1) : null;    // midnight, the day after
+}
+
+function currentTerm(terms, now) {
+  now = now || new Date();
+  var best = null;
+  terms.filter(isStandardTerm).forEach(function (t) {
+    var end = termEnd(t);
+    if (end > now && (!best || end < termEnd(best))) best = t;
+  });
+  return best;
+}
+
 function fetchTerms() {
   return apiGet("studentPagesCommonSearch/fetchTerms").then(function (j) {
     return (Array.isArray(j) ? j : []).map(function (t) {

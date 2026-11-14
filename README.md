@@ -18,9 +18,11 @@ nothing is uploaded.
 
 ## What it does
 
-**Your classes for a term**, in one list, with enrolment counts. Terms are
-filtered to Spring/Summer/Fall, because Banner lists every eight-week session and
-medical-school term it knows about and buries the three you teach in.
+**Your classes for a term**, in one list, with enrolment counts. It opens on
+the term under way, not the newest Banner lists, which in November is already
+next summer's. Terms are filtered to Spring/Summer/Fall, because Banner lists
+every eight-week session and medical-school term it knows about and buries the
+three you teach in.
 
 **Rosters as a grid of faces.** Click one for detail; tick the corner to select.
 Or switch to a table — sortable, with resizable columns — when you are reading
