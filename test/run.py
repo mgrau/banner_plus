@@ -364,6 +364,10 @@ CHECKS = [
       const box = byText("div", "Registrar's GPA", rightPane()).parentNode;
       if (/01234567/.test(text(box))) return "the student's ID is shown as a figure: " + text(box);
       if (byText("button", "Fetch", box)) return "Fetch is still offered beside the figures";
+      // The advisor, off the profile page, with the email from their card.
+      await waitFor("the advisor", () => /Advisor: Pat Q\. Rivera/.test(text(rightPane())), 10000);
+      const mail = $$("a", rightPane()).filter((a) => a.href === "mailto:privera@odu.edu")[0];
+      if (!mail) return "no advisor email link: " + text(rightPane()).slice(0, 300);
       // Overall leads, its Overall row is not repeated, and transfer credit
       // shows hours without the 0.00 Banner sends for it.
       const lines = Array.from(box.children[1].children).map(text);

@@ -508,6 +508,20 @@ function fetchOfficialGPA(s, term) {
   });
 }
 
+/* The student's advisors, off their profile page through the bridge: name,
+ * kind and email, the email empty where the faculty card would not say. */
+var advisorsKnown = {};
+
+function fetchAdvisors(s, term) {
+  if (advisorsKnown[s.uin]) return Promise.resolve(advisorsKnown[s.uin]);
+  return bridgeAsk("advisors", s.uin, term).then(function (list) {
+    advisorsKnown[s.uin] = (list || []).map(function (a) {
+      return { name: normName(a.name || ""), kind: String(a.kind || ""), email: String(a.email || "") };
+    }).filter(function (a) { return a.name; });
+    return advisorsKnown[s.uin];
+  });
+}
+
 var historyCache = {};
 function fetchHistory(s, term) {
   if (s.history) return Promise.resolve(s.history);

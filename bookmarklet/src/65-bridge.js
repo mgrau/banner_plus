@@ -58,8 +58,9 @@
  *     nothing back, not even a hello.
  *   - It asks for a fixed list of things, by name, with a checked UIN —
  *     never "fetch the URL you are given".
- *   - One request at a time, one request per question, and before a question
- *     about a new student, that student's profile (warmProfile). A refusal is
+ *   - One request at a time, one request per question (the advisors, one
+ *     faculty card each), and before a question about a new student, that
+ *     student's profile (warmProfile). A refusal is
  *     passed back, not retried: a burst of retried refusals is the shape of
  *     what upset Banner when the course pane was on.
  *
@@ -83,8 +84,9 @@ var BRIDGE_LOOK = 800;       // how long a bridge clicked first looks for a cons
 var BRIDGE_HEARD = 4000;     // how long a bridge has to say it has the question
 
 // What the bridge will ask the student host for, by name. Paths as
-// ENDPOINTS.md records them.
+// ENDPOINTS.md records them. The rest are read off the profile page itself.
 var BRIDGE_ASKS = { gpa: "studentProfile/viewGPAHoursList" };
+var BRIDGE_READS = { advisors: advisorsIn };
 
 // Where the bridge opens the console when it finds none open: the class
 // list, where people usually start it.
@@ -294,12 +296,16 @@ function askStudentHost(family, qs) {
  * anyone else the GPA is a 404: the first student worked and every one after
  * it did not. So each question about someone new fetches their profile first,
  * the visit without the navigation. A bridge clicked on a profile already has
- * that student. Not fatal: the question is asked either way. */
+ * that student. Not fatal: the question is asked either way.
+ *
+ * The page is kept, parsed, because some answers are on it (BRIDGE_READS). */
 var profileFor = /\/studentProfile/i.test(location.pathname) && TOKEN
   ? new URLSearchParams(location.search).get("studentId") : null;
+var profileDoc = profileFor ? document : null;
 
 function warmProfile(uin, term) {
   if (profileFor === uin) return Promise.resolve(true);
+  profileDoc = null;
   return fetch(base + "/ssb/studentProfile?studentId=" + encodeURIComponent(uin) +
                (term ? "&term=" + encodeURIComponent(term) : ""),
                { credentials: "same-origin" })
@@ -307,9 +313,42 @@ function warmProfile(uin, term) {
     .then(function (html) {
       var t = tokenIn(html);
       if (t) TOKEN = t;
-      if (html) profileFor = uin;
+      if (html) {
+        profileFor = uin;
+        try { profileDoc = new DOMParser().parseFromString(html, "text/html"); } catch (e) {}
+      }
       return true;
     }, function () { return false; });
+}
+
+/* The Advisors section of the profile: a heading, #advisorInformation, and
+ * a row per advisor with the kind in .advisorOutput ("Primary / Faculty
+ * Advisor") and the name as a.facultyLinkClass, whose data-id and data-term
+ * are what the page's own faculty card is opened with. The card has the
+ * email. A card that fails leaves the name, which the page alone gives. */
+var ADVISORS_MAX = 4;
+
+function advisorsIn(doc) {
+  var head = doc && doc.getElementById("advisorInformation");
+  var links = head && head.parentElement
+    ? Array.prototype.slice.call(head.parentElement.querySelectorAll("a.facultyLinkClass"), 0, ADVISORS_MAX)
+    : [];
+  var out = [];
+  return links.reduce(function (p, a) {
+    return p.then(function () {
+      var row = a.closest(".row"), kind = row && row.querySelector(".advisorOutput");
+      var adv = { name: a.textContent.replace(/\s+/g, " ").trim(),
+                  kind: kind ? kind.textContent.replace(/\s+/g, " ").trim() : "", email: "" };
+      out.push(adv);
+      var id = a.getAttribute("data-id") || "", t = a.getAttribute("data-term") || "";
+      if (!/^\d{1,12}$/.test(id)) return;
+      return askStudentHost("facultyCard/retrieveData", "bannerId=" + encodeURIComponent(id) +
+        (/^\d{6}$/.test(t) ? "&termCode=" + t : "")).then(function (j) {
+        var pd = (j && j.data && j.data.personData) || {};
+        if (pd.email) adv.email = String(pd.email);
+      }, function () {});
+    });
+  }, Promise.resolve()).then(function () { return out; });
 }
 
 function serveBridge() {
@@ -399,12 +438,13 @@ function serveBridge() {
   function hello() { everywhere("hello"); draw(); }
 
   function answer(m, send) {
-    var family = BRIDGE_ASKS[m.what], uin = String(m.uin || "");
+    var family = BRIDGE_ASKS[m.what], read = BRIDGE_READS[m.what], uin = String(m.uin || "");
     var term = /^\d{6}$/.test(String(m.term || "")) ? String(m.term) : "";
-    if (!family || !/^\d{1,12}$/.test(uin))
+    if (!(family || read) || !/^\d{1,12}$/.test(uin))
       return send({ kind: "answer", to: m.from, id: m.id, ok: false,
                     error: "not something the bridge answers" });
     return warmProfile(uin, term).then(function () {
+      if (read) return read(profileFor === uin ? profileDoc : null);
       return askStudentHost(family, "studentId=" + encodeURIComponent(uin));
     }).then(function (j) {
       answered++; draw();

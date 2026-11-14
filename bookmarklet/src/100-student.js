@@ -290,9 +290,37 @@ function fetchRow(box, s, hint) {
   return row;
 }
 
-// A tab connecting or going away redraws the box for whoever is on screen.
+/* Advisors, under Email in the facts, once the bridge can ask. Nothing is
+ * shown without one: the GPA box below already offers to connect. The kind
+ * is only shown when there is more than one advisor to tell apart. */
+var advisorsShown = null;
+
+function drawAdvisors(box, s) {
+  box.innerHTML = "";
+  if (!s.uin || (!bridgeReady() && !advisorsKnown[s.uin])) return;
+  fetchAdvisors(s, curTerm()).then(function (list) {
+    if (!document.contains(box) || !list.length) return;
+    box.innerHTML = "";
+    list.forEach(function (a) {
+      var r = el("div", { title: a.kind });
+      r.appendChild(el("span", { text: "Advisor: ", style: { color: "#6b7280" } }));
+      r.appendChild(el("span", { text: a.name +
+        (list.length > 1 && a.kind ? " (" + a.kind.split("/")[0].trim() + ")" : "") }));
+      if (a.email) {
+        r.appendChild(el("span", { text: " · ", style: { color: "#c2c8d2" } }));
+        r.appendChild(el("a", { text: a.email, href: "mailto:" + a.email,
+          style: { color: "#2a78d6", textDecoration: "none" } }));
+      }
+      box.appendChild(r);
+    });
+  }, function () {});
+}
+
+// A tab connecting or going away redraws the boxes for whoever is on screen.
 onBridge(function () {
   if (gpaShown && document.contains(gpaShown.box)) drawOfficialGPA(gpaShown.box, gpaShown.s);
+  if (advisorsShown && document.contains(advisorsShown.box))
+    drawAdvisors(advisorsShown.box, advisorsShown.s);
 });
 
 function focusStudent(s) {
@@ -313,6 +341,10 @@ function focusStudent(s) {
       r.appendChild(el("span", { text: kv[1] }));
       facts.appendChild(r);
     });
+  var adv = el("div");
+  facts.appendChild(adv);
+  advisorsShown = { s: s, box: adv };
+  drawAdvisors(adv, s);
   if (s.confidential)
     facts.appendChild(el("div", { text: "Directory information confidential",
       style: { color: "#b3261e", fontWeight: "600", marginTop: "2px" } }));

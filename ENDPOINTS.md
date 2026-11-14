@@ -366,6 +366,26 @@ bundles contain no GPA route. Banner keeps it here on purpose.
 
 ---
 
+### Advisors
+
+They are not requested separately. The profile page carries them as served:
+a heading `h3#advisorInformation`, then one `div.row` per advisor with
+`strong.advisorOutput` (the kind, as in "Primary / Faculty Advisor") and
+`a.facultyLinkClass` (the name, as in "First M. LAST"), whose `data-id` and
+`data-term` attributes are what the page's own faculty card is opened with:
+
+`ssb/facultyCard/retrieveData?bannerId=&termCode=` →
+`{data: {personData: {bannerId, firstName, lastName, displayName, email, …}}}`
+
+`data-id` is five digits where a Banner ID is eight, so whether it is what
+the card's `bannerId` wants has not been seen. If it is not, the card fails
+and the name is shown without the email.
+
+Seen on the profile, not used yet: `studentHolds/showHolds?studentId=`
+(each hold's description, reason and dates), `viewRegistrationNotices`
+(standing, time tickets, enrollment status) and `viewRegisteredCourseList`
+(courses with each instructor's name and email).
+
 ## How to find the next one
 
 In rough order of how well it has worked:

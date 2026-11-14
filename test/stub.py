@@ -289,7 +289,22 @@ def student_page(pages: str) -> str:
             '<meta name="synchronizerToken" content="STUDENTTOKEN">'
             "<title>Student Profile</title></head>"
             '<body><h1>Banner (stub)</h1><div id="page">Student Profile</div>'
+            + ADVISORS_HTML +
             f'<script src="{pages}/console.js"></script></body></html>')
+
+
+# The Advisors section as the real profile page lays it out, recorded as
+# structure only. One advisor, the same for every student.
+ADVISORS_HTML = (
+    '<div class="row no-margin standard-padding-bottom">'
+    '<h3 id="advisorInformation" class="title">Advisors</h3>'
+    '<div class="row no-margin">'
+    '<strong class="col-sm-6 advisorOutput">Primary / Faculty Advisor</strong>'
+    '<div class="facultyLinkWrapper col-sm-6">'
+    '<span id="facultyLinkInfo" class="sr-only">Press enter to view instructor details</span>'
+    '<a class="facultyLinkClass" href="#" data-id="77001" data-term="202610">Pat Q. RIVERA</a>'
+    '</div></div></div>')
+ADVISOR_CARDS = {"77001": {"displayName": "Rivera, Pat Q", "email": "privera@odu.edu"}}
 
 
 # Somebody else's page, on a third origin of the same site. It opens a student
@@ -575,6 +590,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.server.hits.add("student:" + fam)
         # Under /ssb here, though ENDPOINTS.md records it at the app root, so
         # the bridge's one fallback gets used.
+        if fam == "facultyCard/retrieveData" and ssb:
+            if self.headers.get("X-Synchronizer-Token") != "STUDENTTOKEN":
+                return self.send_blob(b"bad token", "text/plain", 401)
+            f = ADVISOR_CARDS.get(q.get("bannerId", ""))
+            if not f:
+                return self.not_found()
+            return self.send_json({"data": {"personData": dict(f, bannerId=q["bannerId"]),
+                                            "message": ""}})
         if fam == "studentProfile/viewGPAHoursList" and ssb:
             # Only once a profile has been served, and with this host's own
             # token, from that page, not the faculty one.
