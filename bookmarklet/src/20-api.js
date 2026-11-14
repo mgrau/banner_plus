@@ -105,7 +105,10 @@ function withPrefix(family, run) {
       }
       return j;
     }, function (e) {
-      if (i < order.length) return attempt();
+      // Any other status is the right route refusing, and is the answer.
+      // Retried, it came back as the other prefix's 404.
+      var st = /HTTP (\d{3})/.exec(String(e && e.message));
+      if (i < order.length && (!st || st[1] === "404")) return attempt();
       throw e;
     });
   }

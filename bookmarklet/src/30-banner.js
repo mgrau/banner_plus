@@ -658,7 +658,13 @@ function fetchCourseDetail(termCode, crn) {
  * not 80. */
 function hydrate(students, term, onProgress) {
   return pool(students, CONCURRENCY, function (s) {
-    return fetchHistory(s, term).catch(function () { return []; });
+    // A failure leaves the rest of the batch alone, but is kept, so a pane
+    // can say so instead of drawing an empty record.
+    s.historyError = null;
+    return fetchHistory(s, term).catch(function (e) {
+      s.historyError = String(e.message || e).replace(/ \S+\/\S+$/, "");
+      return [];
+    });
   }, onProgress).then(function () {
     var want = {}, jobs = [];
     students.forEach(function (s) {

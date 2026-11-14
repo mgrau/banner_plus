@@ -421,6 +421,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # off at the wire, not merely invisible.
         if u.path == "/hits":
             return self.send_json(sorted(self.server.hits))
+        # From here on, registration history is refused, the way an expired
+        # session refuses it, so a check can see what the pane says.
+        if u.path == "/refuse-history":
+            self.server.history_down = True
+            return self.send_json(True)
         # The check under test, loaded after the console so it runs second.
         if u.path == "/check.js":
             self.send_blob(self.server.check_js.encode(), "application/javascript")
@@ -615,6 +620,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json({"result": out})
 
         if fam == "registrationHistory/fetchRegistrationHistory":
+            if self.server.history_down:
+                return self.send_blob(b"session expired", "text/plain", 401)
             try:
                 p = base64.b64decode(body.get("xyz", "")).decode()
             except Exception:
@@ -646,6 +653,7 @@ def serve(port: int, console_js: str, hub_html: str, verbose: bool = False):
     srv.warm = False           # set once the class-list page has been served
     srv.student_warm = None    # the studentId whose profile was served last
     srv.hits = set()           # endpoint families asked for; see /hits
+    srv.history_down = False   # see /refuse-history
     srv.navs = []              # pages loaded into a tab, in order; see /navs
     srv.verbose = verbose
     return srv

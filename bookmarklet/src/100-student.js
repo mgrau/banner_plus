@@ -310,7 +310,16 @@ function focusStudent(s) {
   hydrate([s], curTerm()).then(function () {
     idle(null);
     if (S.table) renderMain();
-    var out = [nodes[0], nodes[1], exitLinks(s), majorHistoryBox(s)];
+    var out = [nodes[0], nodes[1], exitLinks(s)];
+    if (s.historyError) {
+      out.push(el("div", { text: "Couldn't load registration history: " + s.historyError +
+        ". Click the student to try again, or reload this tab if Banner has signed you out.",
+        style: { color: "#b3261e", fontSize: "12px", lineHeight: "1.45", margin: "6px 0" } }));
+      if (s.uin) out.push(officialGPABox(s));
+      showRight(out);
+      return;
+    }
+    out.push(majorHistoryBox(s));
 
     var now = (s.history || []).filter(function (c) { return c.termCode === curTerm(); });
     out.push(el("div", { text: "This term", style: {

@@ -275,6 +275,19 @@ CHECKS = [
       return true;
     """),
 
+    ("a refused registration history says so, not an empty record", r"""
+      await openFall101();
+      await fetch("/refuse-history");
+      click($$("img", main())[0].parentNode);                  // Jane
+      await waitFor("the pane to finish", () => !/Loading record/.test(text(rightPane())));
+      const t = text(rightPane());
+      if (!/Couldn't load registration history: HTTP 401/.test(t))
+        return "no error shown: " + t.slice(0, 300);
+      if (/Not registered this term|Major by term|Transcript/.test(t))
+        return "an empty record is drawn as if it were the record: " + t.slice(0, 300);
+      return true;
+    """),
+
     ("the schedule names who teaches each course", r"""
       await openFall101();
       click($$("img", main())[0].parentNode);
@@ -911,6 +924,7 @@ def run_one(srv, url: str, timeout: int = 45) -> tuple[bool, str]:
     srv.result = None
     srv.warm = False           # every check gets a cold Banner session
     srv.student_warm = None
+    srv.history_down = False
     srv.hits.clear()
     srv.navs.clear()
     profile = Path(tempfile.mkdtemp(prefix="bp-chrome-"))
