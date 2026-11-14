@@ -227,11 +227,17 @@ CHECKS = [
       if (heads.some((h) => /GPA/i.test(h))) return "GPA column is back: " + heads.join("|");
       for (const want of ["Name", "UIN", "Major", "Standing", "Admitted", "Email"])
         if (!heads.includes(want)) return "missing column " + want + ": " + heads.join("|");
-      const first = () => text($$("tr", main())[1].children[2]);
-      const before = first();
+      // The <b>, because a confidential student's cell also carries a "C".
+      const names = () => $$("tr", main()).slice(1)
+        .map((r) => text(r.children[2].querySelector("b"))).join("|");
+      // By surname, the way a class list reads. By first name, John Smith
+      // would come second.
+      if (names() !== "Jane A Doe|Mary-Jo O'Brien|John Smith")
+        return "Name does not sort by surname: " + names();
       click(byText("th", "Name ▲", main()) || $$("th", main())[2]);
       await sleep(50);
-      if (first() === before) return "sorting by Name changed nothing";
+      if (names() !== "John Smith|Mary-Jo O'Brien|Jane A Doe")
+        return "Name ▼ is not the reverse: " + names();
       click(byText("button", "Photos", main()));
       return true;
     """),

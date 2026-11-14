@@ -262,7 +262,7 @@ function addResizer(th, colEl, key, COLS) {
 
 function studentTable() {
   var COLS = [
-    { key: "name", label: "Name", get: function (s) { return s.name; } },
+    { key: "name", label: "Name", get: function (s) { return s.name; }, cmp: byName },
     { key: "uin", label: "UIN", get: function (s) { return s.uin; } },
     { key: "majors", label: "Major", get: function (s) { return (s.majors || []).join(" / "); } },
     { key: "standing", label: "Standing", get: function (s) { return s.standing || ""; } },
@@ -271,11 +271,12 @@ function studentTable() {
   ];
   var col = COLS.filter(function (c) { return c.key === tableSort.col; })[0] || COLS[0];
   // Every column is text. numeric:true keeps UINs and "2Y"-style values in
-  // human order rather than lexical.
-  var rows = S.students.slice().sort(function (a, b) {
-    return String(col.get(a)).localeCompare(String(col.get(b)), undefined, { numeric: true }) *
-      tableSort.dir;
-  });
+  // human order rather than lexical. Name brings its own comparison, because
+  // what it shows is not what it sorts by.
+  var cmp = col.cmp || function (a, b) {
+    return String(col.get(a)).localeCompare(String(col.get(b)), undefined, { numeric: true });
+  };
+  var rows = S.students.slice().sort(function (a, b) { return cmp(a, b) * tableSort.dir; });
 
   /* Fills the pane, and every dragged width stays exact.
    *

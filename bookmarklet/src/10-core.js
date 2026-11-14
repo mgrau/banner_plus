@@ -116,6 +116,28 @@ function normName(raw) {
   return (tc(first.trim()) + " " + tc(last.trim())).trim();
 }
 
+/* "LAST, FIRST M" is the shape Banner reports, and it is the one worth
+ * splitting: everything before the comma is the surname, so a compound one
+ * survives. Falling back to splitting a display name on its last space gets
+ * "Van Der Berg" wrong, but it is only reached when the raw name is missing. */
+function splitName(s) {
+  var raw = String(s.raw || "");
+  if (raw.indexOf(",") > -1) {
+    var parts = raw.split(",");
+    return { last: normName(parts[0] + ","), first: normName("," + parts.slice(1).join(",")) };
+  }
+  var bits = String(s.name || "").trim().split(/\s+/);
+  if (bits.length < 2) return { first: "", last: bits[0] || "" };
+  return { last: bits.pop(), first: bits.join(" ") };
+}
+
+/* Surname, then given name: the order a class list is read in. Names are
+ * shown first-name-first, so sorting the shown name ran by first name. */
+function byName(a, b) {
+  var x = splitName(a), y = splitName(b);
+  return x.last.localeCompare(y.last) || x.first.localeCompare(y.first);
+}
+
 function parseTerm(t) {
   var m = /(Spring|Summer|Fall|Winter)\s+(\d{4})/i.exec(t || "");
   if (!m) return null;

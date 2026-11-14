@@ -31,21 +31,6 @@
 var PLANNER_URL = "https://mgrau.github.io/semester-planner/";
 var PLANNER_FORMAT = 1;
 
-/* "LAST, FIRST M" is the shape Banner reports, and it is the one worth
- * splitting: everything before the comma is the surname, so a compound one
- * survives. Falling back to splitting a display name on its last space gets
- * "Van Der Berg" wrong, but it is only reached when the raw name is missing. */
-function splitName(s) {
-  var raw = String(s.raw || "");
-  if (raw.indexOf(",") > -1) {
-    var parts = raw.split(",");
-    return { last: normName(parts[0] + ","), first: normName("," + parts.slice(1).join(",")) };
-  }
-  var bits = String(s.name || "").trim().split(/\s+/);
-  if (bits.length < 2) return { first: "", last: bits[0] || "" };
-  return { last: bits.pop(), first: bits.join(" ") };
-}
-
 /* The calendar season and year a registration belongs to.
  *
  * The printed description is authoritative where there is one. The fallback
